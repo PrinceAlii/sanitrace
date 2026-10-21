@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - Add `bug`, `security`, and `review` report profiles, selected with `--profile`
   or the `profile` config key. The default `bug` report is unchanged.

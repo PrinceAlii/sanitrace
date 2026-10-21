@@ -4,7 +4,7 @@
 // Tool input and output are collapsed into <details> blocks so a large log fits
 // in an issue body.
 
-export const VERSION = '0.1.1';
+export const VERSION = '0.2.0';
 export const REDACTIONS_MARKER = '<!-- sanitrace:redactions -->';
 
 const PROFILES = {

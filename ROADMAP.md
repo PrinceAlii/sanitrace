@@ -1,7 +1,8 @@
 # Roadmap
 
-Repository version: 0.1.1 (2026-10-21). The latest npm release is 0.1.0. The
-items below are proposals. None of them is implemented.
+Repository version: 0.2.0 (2026-10-21). The latest npm release is 0.1.0. Items
+under "Shipped in 0.2.0" are implemented in this repository. The remaining
+items are proposals or work in progress.
 
 ## Constraints
 
@@ -27,6 +28,12 @@ An accepted change keeps these properties:
 - `--check`, `--verify`, `--json`, `sanitrace rules`, and `.sanitrace.json`.
 - 36 tests and CI on Linux, macOS, and Windows with Node 20, 22, and 24.
 
+## Shipped in 0.2.0
+
+- Custom detectors from `.sanitrace.json` and local ESM modules.
+- `bug`, `security`, and `review` report profiles.
+- Encrypted mapping export and `sanitrace mapping show`.
+
 ## Priority order
 
 1. Reduce the chance of a missed credential or a leaked path.
@@ -43,9 +50,9 @@ session format, or a file format. A small fix does not need a spec.
 
 | ID | Work | Spec | Status |
 | --- | --- | --- | --- |
-| R1 | Custom detectors in config and local modules | [0001](docs/specs/0001-custom-detectors.md) | Draft |
-| R2 | Report profiles for bug, security, and review | [0002](docs/specs/0002-report-profiles.md) | Draft |
-| R3 | Encrypted mapping export and `mapping show` | [0003](docs/specs/0003-mapping-export.md) | Draft |
+| R1 | Custom detectors in config and local modules | [0001](docs/specs/0001-custom-detectors.md) | Implemented |
+| R2 | Report profiles for bug, security, and review | [0002](docs/specs/0002-report-profiles.md) | Implemented |
+| R3 | Encrypted mapping export and `mapping show` | [0003](docs/specs/0003-mapping-export.md) | Implemented |
 | R4 | Detector corpus and parser fuzzing | none | Planned |
 
 R1 adds rules for internal formats, R2 adds report sections, and R3 adds an
@@ -59,7 +66,7 @@ and no new dependency.
 
 Release criteria for 0.2.0:
 
-- The three specs are accepted.
+- The three specs are implemented.
 - Tests cover each custom rule path, each profile, and the mapping format.
 - The default bug report output does not change unless a spec says it does.
 - README, CLI help, and CHANGELOG describe the new surface.
