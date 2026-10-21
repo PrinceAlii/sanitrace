@@ -1,7 +1,33 @@
 # sanitrace
 
+[![npm version](https://img.shields.io/npm/v/sanitrace.svg)](https://www.npmjs.com/package/sanitrace)
+[![CI](https://github.com/PrinceAlii/sanitrace/actions/workflows/ci.yml/badge.svg)](https://github.com/PrinceAlii/sanitrace/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/sanitrace.svg)](LICENSE)
+[![Node version](https://img.shields.io/node/v/sanitrace.svg)](package.json)
+[![runtime dependencies](https://img.shields.io/badge/runtime_dependencies-none-brightgreen.svg)](package.json)
+
 Turn an agent session log into a Markdown report that can be attached to a bug
 report or a review.
+
+## Contents
+
+- [The problem](#the-problem)
+- [What it does](#what-it-does)
+- [Install](#install)
+- [Usage](#usage)
+- [Session formats](#session-formats)
+- [Profiles](#profiles)
+- [Plain text](#plain-text)
+- [Diff reports](#diff-reports)
+- [Mapping](#mapping)
+- [Configuration](#configuration)
+- [Custom detectors](#custom-detectors)
+- [GitHub Action](#github-action)
+- [Continuous integration](#continuous-integration)
+- [Detectors](#detectors)
+- [Limits](#limits)
+- [Development](#development)
+- [License](#license)
 
 ## The problem
 
