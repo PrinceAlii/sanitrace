@@ -25,6 +25,8 @@ log and can be read before it is published.
   truncates tool output to 2000 characters.
 - Budgets reports at 120,000 characters by scaling block text, then eliding
   middle turns.
+- Writes `bug`, `security`, or `review` reports with profile-specific sections
+  and prompts.
 - Runs every detector again over its own output and exits 3 if a match remains.
 - Runs locally, with no network access and no runtime dependencies.
 
@@ -80,12 +82,42 @@ $ sanitrace rules                           # list detectors
 $ sanitrace <session.jsonl> --check         # exit 1 if anything was redacted
 ```
 
-Flags: `--allow <value>` (never redact, repeatable), `--no-emails`, `--no-ips`,
-`--no-entropy`, `--no-outputs`, `--keep-reasoning`, `--keep-developer`,
-`--max-tool-chars <n>`, `--max-total <n>`, `--json`, `--format`.
+Flags: `--profile <name>`, `--allow <value>` (never redact, repeatable),
+`--no-emails`, `--no-ips`, `--no-entropy`, `--no-outputs`, `--keep-reasoning`,
+`--keep-developer`, `--max-tool-chars <n>`, `--max-total <n>`, `--json`,
+`--format`.
 
 The verify pass runs by default. Pass `--no-verify` to skip the second
 detection pass.
+
+## Profiles
+
+`--profile` selects the report layout. The default is `bug`. `.sanitrace.json`
+accepts `"profile": "security"`, and `--profile` overrides the config value.
+Valid names are `bug`, `security`, and `review`. An unknown or uppercase name
+exits 2 before sanitrace reads the log.
+
+| Order | `bug` | `security` | `review` |
+| --- | --- | --- | --- |
+| Title | Agent session report | Agent session security report | Agent session review |
+| 1 | Metadata | Metadata | Metadata |
+| 2 | Redactions | Redactions | Redactions |
+| 3 | What happened | Summary | Summary |
+| 4 | Expected | Impact | Changes |
+| 5 | Transcript | Affected versions | Verification |
+| 6 | | Reproduction | Risks |
+| 7 | | Expected behavior | Transcript |
+| 8 | | Transcript | |
+
+The profile sets the title, the section headings, the prompt comments, and one
+`Profile` metadata row for `security` and `review`. Detectors, truncation, and
+the redaction table do not change. `--json` includes the selected profile as
+`"profile"`.
+
+```console
+$ sanitrace session.jsonl --profile security
+$ sanitrace session.jsonl --profile review -o review.md
+```
 
 ## Configuration
 
@@ -96,6 +128,7 @@ override the file. Unknown keys are an error.
 {
   "allow": ["@mycompany.example", "github.com/myorg"],
   "disable": ["ipv4"],
+  "profile": "security",
   "outputs": true,
   "maxToolChars": 1200,
   "maxTotal": 60000,

@@ -5,7 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
 
-import { loadConfig, rules, sanitize } from '../src/index.js';
+import { loadConfig, resolveProfile, rules, sanitize } from '../src/index.js';
 
 const HELP = `sanitrace: turn an agent session log into a redacted Markdown report
 
@@ -17,6 +17,7 @@ Usage
 Options
   -o, --out <file>        write the report to a file instead of stdout
       --format <name>     auto (default), codex, claude, text
+      --profile <name>    report profile: bug (default), security, review
       --config <file>     use a specific .sanitrace.json
       --allow <value>     never redact a value (repeatable)
       --disable <rule>    skip a detector by id (repeatable)
@@ -43,35 +44,45 @@ Config
   .sanitrace.json is read from the working directory upward:
   { "allow": [], "disable": [], "entropy": true, "emails": true,
     "ips": true, "reasoning": false, "outputs": true, "developer": false,
-    "maxToolChars": 2000, "maxTotal": 120000, "keepPaths": [] }
+    "maxToolChars": 2000, "maxTotal": 120000, "keepPaths": [],
+    "profile": "bug" }
 
 No network access.
 `;
 
-const { values, positionals } = parseArgs({
-  allowPositionals: true,
-  options: {
-    out: { type: 'string', short: 'o' },
-    format: { type: 'string', default: 'auto' },
-    config: { type: 'string' },
-    allow: { type: 'string', multiple: true, default: [] },
-    disable: { type: 'string', multiple: true, default: [] },
-    'max-tool-chars': { type: 'string' },
-    'max-total': { type: 'string' },
-    'keep-reasoning': { type: 'boolean', default: false },
-    'keep-developer': { type: 'boolean', default: false },
-    'keep-path': { type: 'string', multiple: true, default: [] },
-    'no-outputs': { type: 'boolean', default: false },
-    'no-entropy': { type: 'boolean', default: false },
-    'no-emails': { type: 'boolean', default: false },
-    'no-ips': { type: 'boolean', default: false },
-    check: { type: 'boolean', default: false },
-    'no-verify': { type: 'boolean', default: false },
-    json: { type: 'boolean', default: false },
-    help: { type: 'boolean', short: 'h', default: false },
-    version: { type: 'boolean', short: 'v', default: false },
-  },
-});
+let args;
+try {
+  args = parseArgs({
+    allowPositionals: true,
+    options: {
+      out: { type: 'string', short: 'o' },
+      format: { type: 'string', default: 'auto' },
+      profile: { type: 'string' },
+      config: { type: 'string' },
+      allow: { type: 'string', multiple: true, default: [] },
+      disable: { type: 'string', multiple: true, default: [] },
+      'max-tool-chars': { type: 'string' },
+      'max-total': { type: 'string' },
+      'keep-reasoning': { type: 'boolean', default: false },
+      'keep-developer': { type: 'boolean', default: false },
+      'keep-path': { type: 'string', multiple: true, default: [] },
+      'no-outputs': { type: 'boolean', default: false },
+      'no-entropy': { type: 'boolean', default: false },
+      'no-emails': { type: 'boolean', default: false },
+      'no-ips': { type: 'boolean', default: false },
+      check: { type: 'boolean', default: false },
+      'no-verify': { type: 'boolean', default: false },
+      json: { type: 'boolean', default: false },
+      help: { type: 'boolean', short: 'h', default: false },
+      version: { type: 'boolean', short: 'v', default: false },
+    },
+  });
+} catch (error) {
+  process.stderr.write(`sanitrace: ${error.message}\n\n${HELP}`);
+  process.exit(2);
+}
+
+const { values, positionals } = args;
 
 main().catch((error) => {
   process.stderr.write(`sanitrace: ${error.message}\n`);
@@ -96,6 +107,7 @@ async function main() {
   const { config } = loadConfig(values.config);
   const settings = {
     format: values.format,
+    profile: resolveProfile(values.profile ?? config.profile),
     allow: [...(config.allow ?? []), ...values.allow],
     disable: [...(config.disable ?? []), ...values.disable],
     entropy: values['no-entropy'] ? false : (config.entropy ?? true),
@@ -130,7 +142,11 @@ async function main() {
   }
 
   if (values.json) {
-    const payload = JSON.stringify({ findings, residual, markdown }, null, 2);
+    const payload = JSON.stringify(
+      { findings, residual, markdown, profile: settings.profile },
+      null,
+      2,
+    );
     if (values.out) await writeFile(values.out, `${payload}\n`);
     else process.stdout.write(`${payload}\n`);
   } else if (values.out) {

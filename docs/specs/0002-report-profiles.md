@@ -1,6 +1,6 @@
 # 0002: Report profiles
 
-Status: Accepted
+Status: Implemented
 Target: 0.2.0
 Depends on: none
 

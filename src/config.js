@@ -12,6 +12,7 @@ const KNOWN_KEYS = new Set([
   'reasoning',
   'developer',
   'outputs',
+  'profile',
   'maxToolChars',
   'maxTotal',
   'keepPaths',
@@ -41,6 +42,9 @@ export function loadConfig(explicit, from = process.cwd()) {
     if (!KNOWN_KEYS.has(key)) throw new Error(`Unknown config key "${key}" in ${file}`);
     if (key === 'allow' || key === 'disable' || key === 'keepPaths') {
       if (!Array.isArray(raw[key])) throw new Error(`Config key "${key}" must be an array in ${file}`);
+    }
+    if (key === 'profile' && typeof raw[key] !== 'string') {
+      throw new Error(`Config key "profile" must be a string in ${file}`);
     }
   }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `bug`, `security`, and `review` report profiles, selected with `--profile`
+  or the `profile` config key. The default `bug` report is unchanged.
+- Add `"profile"` to `--json` output.
+
 ## 0.1.1
 
 - Rewrite the README, CONTRIBUTING, and SECURITY files to the repository writing

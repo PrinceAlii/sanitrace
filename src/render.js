@@ -5,11 +5,102 @@
 // in an issue body.
 
 export const VERSION = '0.1.1';
+export const REDACTIONS_MARKER = '<!-- sanitrace:redactions -->';
+
+const PROFILES = {
+  bug: {
+    title: 'Agent session report',
+    sections: [
+      {
+        heading: 'What happened',
+        prompt: 'One or two sentences: what did you ask for, what went wrong?',
+      },
+      {
+        heading: 'Expected',
+        prompt: 'What should the agent have done instead?',
+      },
+    ],
+  },
+  security: {
+    title: 'Agent session security report',
+    sections: [
+      {
+        heading: 'Summary',
+        prompt: 'Describe what went wrong and the security impact.',
+      },
+      {
+        heading: 'Impact',
+        prompt: 'Describe what an attacker could reach and what data is exposed.',
+      },
+      {
+        heading: 'Affected versions',
+        prompt: 'List the versions or commits that contain the problem.',
+      },
+      {
+        heading: 'Reproduction',
+        prompt: 'List the commands or steps that trigger the problem.',
+      },
+      {
+        heading: 'Expected behavior',
+        prompt: 'Describe what the software should do instead.',
+      },
+    ],
+  },
+  review: {
+    title: 'Agent session review',
+    sections: [
+      {
+        heading: 'Summary',
+        prompt: 'Describe the change and why it is needed.',
+      },
+      {
+        heading: 'Changes',
+        prompt: 'List the files and behavior that changed.',
+      },
+      {
+        heading: 'Verification',
+        prompt: 'Describe what you ran to check the change.',
+      },
+      {
+        heading: 'Risks',
+        prompt: 'Describe what could break and what remains untested.',
+      },
+    ],
+  },
+};
+
+export const PROFILE_NAMES = Object.keys(PROFILES);
 
 const SHELL_TOOLS = new Set(['shell', 'exec', 'exec_command', 'bash', 'run_command', 'apply_patch']);
 
 /**
+ * Returns a valid profile name or throws.
+ * @param {string} [name]
+ * @returns {'bug'|'security'|'review'}
+ */
+export function resolveProfile(name = 'bug') {
+  if (!Object.hasOwn(PROFILES, name)) {
+    throw new Error(`Unknown profile "${name}". Valid profiles: ${PROFILE_NAMES.join(', ')}`);
+  }
+  return name;
+}
+
+/**
+ * Renders the redaction summary table.
+ * @param {{label: string, count: number}[]} [findings]
+ */
+export function redactionTable(findings = []) {
+  if (findings.length === 0) return 'No redactions were needed.';
+  return [
+    '| Placeholder | Count |',
+    '| --- | --- |',
+    ...findings.map((finding) => `| ${labelFor(finding.label)} | ${finding.count} |`),
+  ].join('\n');
+}
+
+/**
  * @typedef {object} RenderOptions
+ * @property {'bug'|'security'|'review'} [profile] report layout (default bug)
  * @property {boolean} [reasoning] include reasoning summaries
  * @property {boolean} [outputs] include tool output
  * @property {boolean} [summary] include the redaction summary (default true)
@@ -21,10 +112,12 @@ const SHELL_TOOLS = new Set(['shell', 'exec', 'exec_command', 'bash', 'run_comma
  * @param {RenderOptions} [options]
  */
 export function render(parsed, options = {}) {
+  const profileName = resolveProfile(options.profile);
+  const profile = PROFILES[profileName];
   const lines = [];
   const meta = parsed.meta;
 
-  lines.push('# Agent session report', '');
+  lines.push(`# ${profile.title}`, '');
   lines.push(
     `> Generated with [sanitrace](https://github.com/PrinceAlii/sanitrace) v${VERSION}. ` +
       'Detected secrets and local paths are replaced with placeholders such as ' +
@@ -35,6 +128,7 @@ export function render(parsed, options = {}) {
   lines.push('## Metadata', '');
   lines.push('| Field | Value |', '| --- | --- |');
   lines.push(`| Format | \`${parsed.format}\` |`);
+  if (profileName !== 'bug') lines.push(`| Profile | \`${profileName}\` |`);
   if (meta.model) lines.push(`| Model | \`${meta.model}\` |`);
   if (meta.source) lines.push(`| Client | ${meta.source}${meta.cliVersion ? ` ${meta.cliVersion}` : ''} |`);
   if (meta.cwd) lines.push(`| Working directory | \`${meta.cwd}\` |`);
@@ -50,23 +144,18 @@ export function render(parsed, options = {}) {
   );
 
   if (options.summary !== false) {
-    lines.push('## Redactions', '');
-    const findings = options.findings ?? [];
-    if (findings.length === 0) {
-      lines.push('No redactions were needed.', '');
-    } else {
-      lines.push('| Placeholder | Count |', '| --- | --- |');
-      for (const finding of findings) lines.push(`| \`[${finding.label}_*]\` | ${finding.count} |`);
-      lines.push('');
-    }
+    lines.push('## Redactions', '', redactionTable(options.findings), '');
+  } else {
+    lines.push(REDACTIONS_MARKER, '');
   }
 
   if (parsed.skipped > 0) {
     lines.push(`_${parsed.skipped} unrecognized record(s) were skipped._`, '');
   }
 
-  lines.push('## What happened', '', '<!-- One or two sentences: what did you ask for, what went wrong? -->', '');
-  lines.push('## Expected', '', '<!-- What should the agent have done instead? -->', '');
+  for (const section of profile.sections) {
+    lines.push(`## ${section.heading}`, '', `<!-- ${section.prompt} -->`, '');
+  }
 
   lines.push('---', '', '## Transcript', '');
 
@@ -202,6 +291,11 @@ function collapse(label, body, language) {
 
 function escapeHtml(value) {
   return value.replace(/[&<>]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[char]);
+}
+
+function labelFor(label) {
+  if (label === 'PATH') return '`<REPO>`, `~`, `<HOST>`';
+  return `\`[${label}_*]\``;
 }
 
 function shortId(value) {

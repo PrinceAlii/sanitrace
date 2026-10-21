@@ -69,3 +69,71 @@ test('rejects an invalid flag value', async () => {
   assert.equal(code, 2);
   assert.match(stderr, /at least 100/);
 });
+
+test('reads the report profile from config and lets --profile override it', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'sanitrace-'));
+  const config = path.join(directory, 'config.json');
+  await writeFile(config, JSON.stringify({ profile: 'review' }));
+
+  const fromConfig = await cli([fixture, '--config', config]);
+  assert.equal(fromConfig.code, 0);
+  assert.match(fromConfig.stdout, /^# Agent session review$/m);
+
+  const overridden = await cli([fixture, '--config', config, '--profile', 'security']);
+  assert.equal(overridden.code, 0);
+  assert.match(overridden.stdout, /^# Agent session security report$/m);
+  assert.ok(!overridden.stdout.includes('# Agent session review'));
+});
+
+test('rejects an unknown profile before reading the input', async () => {
+  const missing = path.join(await mkdtemp(path.join(tmpdir(), 'sanitrace-')), 'missing.jsonl');
+  const { code, stderr } = await cli([missing, '--profile', 'Security']);
+  assert.equal(code, 2);
+  assert.match(stderr, /Unknown profile "Security"/);
+  for (const name of ['bug', 'security', 'review']) assert.ok(stderr.includes(name));
+  assert.ok(!stderr.includes('ENOENT'));
+});
+
+test('rejects a non-string profile in config', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'sanitrace-'));
+  const config = path.join(directory, 'config.json');
+  await writeFile(config, JSON.stringify({ profile: 3 }));
+  const { code, stderr } = await cli([fixture, '--config', config]);
+  assert.equal(code, 2);
+  assert.match(stderr, /Config key "profile" must be a string/);
+  assert.ok(stderr.includes(config));
+});
+
+test('rejects an unknown profile in config', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'sanitrace-'));
+  const config = path.join(directory, 'config.json');
+  await writeFile(config, JSON.stringify({ profile: 'Bugs' }));
+  const { code, stderr } = await cli([fixture, '--config', config]);
+  assert.equal(code, 2);
+  assert.match(stderr, /Unknown profile "Bugs"/);
+  for (const name of ['bug', 'security', 'review']) assert.ok(stderr.includes(name));
+});
+
+test('rejects --profile without a value', async () => {
+  const { code, stderr } = await cli([fixture, '--profile']);
+  assert.equal(code, 2);
+  assert.match(stderr, /Usage/);
+});
+
+test('--json reports the selected profile', async () => {
+  const cases = [
+    [[], 'bug'],
+    [['--profile', 'security'], 'security'],
+    [['--profile', 'review'], 'review'],
+  ];
+
+  for (const [args, profile] of cases) {
+    const { code, stdout } = await cli([fixture, '--json', ...args]);
+    assert.equal(code, 0);
+    const payload = JSON.parse(stdout);
+    assert.equal(payload.profile, profile);
+    assert.ok(Array.isArray(payload.findings));
+    assert.ok(Array.isArray(payload.residual));
+    assert.match(payload.markdown, /## Redactions/);
+  }
+});

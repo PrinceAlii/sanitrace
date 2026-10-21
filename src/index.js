@@ -5,15 +5,16 @@ import path from 'node:path';
 
 import { parse } from './parse.js';
 import { redact, verify } from './redact.js';
-import { render } from './render.js';
+import { REDACTIONS_MARKER, redactionTable, render, resolveProfile } from './render.js';
 
 export { detectFormat, parse } from './parse.js';
 export { redact, rules, verify } from './redact.js';
-export { render } from './render.js';
+export { PROFILE_NAMES, render, resolveProfile } from './render.js';
 export { loadConfig } from './config.js';
 
 /**
  * @typedef {object} SanitizeOptions
+ * @property {'bug'|'security'|'review'} [profile] report layout (default bug)
  * @property {'auto'|'codex'|'claude'|'text'} [format]
  * @property {string[]} [allow] values to leave untouched
  * @property {string[]} [disable] rule ids to skip
@@ -34,6 +35,7 @@ export { loadConfig } from './config.js';
  * @param {SanitizeOptions} [options]
  */
 export function sanitize(text, options = {}) {
+  const profile = resolveProfile(options.profile);
   const parsed = parse(text, { format: options.format, maxToolChars: options.maxToolChars });
   const draft = render(parsed, {
     findings: undefined,
@@ -41,6 +43,7 @@ export function sanitize(text, options = {}) {
     outputs: options.outputs,
     developer: options.developer,
     maxTotal: options.maxTotal,
+    profile,
     summary: false,
   });
 
@@ -80,23 +83,15 @@ function pathMappings(cwd, keepPaths) {
 }
 
 function insertSummary(markdown, findings) {
-  const table =
-    findings.length === 0
-      ? 'No redactions were needed.'
-      : [
-          '| Placeholder | Count |',
-          '| --- | --- |',
-          ...findings.map((finding) => `| ${labelFor(finding.label)} | ${finding.count} |`),
-        ].join('\n');
+  const section = `## Redactions\n\n${redactionTable(findings)}`;
 
-  const section = `## Redactions\n\n${table}\n`;
-  const marker = '## What happened';
+  if (markdown.includes(REDACTIONS_MARKER)) {
+    return markdown.replace(REDACTIONS_MARKER, section);
+  }
 
-  if (markdown.includes(marker)) return markdown.replace(marker, `${section}\n${marker}`);
+  if (markdown.includes('## Transcript')) {
+    return markdown.replace('## Transcript', `${section}\n\n## Transcript`);
+  }
+
   return `${markdown}\n${section}`;
-}
-
-function labelFor(label) {
-  if (label === 'PATH') return '`<REPO>`, `~`, `<HOST>`';
-  return `\`[${label}_*]\``;
 }
