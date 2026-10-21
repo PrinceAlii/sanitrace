@@ -6,10 +6,18 @@ import { parse, render, sanitize } from '../src/index.js';
 import { VERSION } from '../src/render.js';
 
 const codex = readFileSync(new URL('./fixtures/codex-rollout.jsonl', import.meta.url), 'utf8');
+
+// The renderer emits LF on every platform. Git may check out fixtures with
+// CRLF on Windows, so normalize the expected snapshots before comparison.
+function readSnapshot(name) {
+  return readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8')
+    .replaceAll('\r\n', '\n');
+}
+
 const snapshots = {
-  bug: readFileSync(new URL('./fixtures/report-bug.md', import.meta.url), 'utf8'),
-  security: readFileSync(new URL('./fixtures/report-security.md', import.meta.url), 'utf8'),
-  review: readFileSync(new URL('./fixtures/report-review.md', import.meta.url), 'utf8'),
+  bug: readSnapshot('report-bug.md'),
+  security: readSnapshot('report-security.md'),
+  review: readSnapshot('report-review.md'),
 };
 
 const expectations = {
