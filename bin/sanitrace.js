@@ -6,7 +6,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
 
-import { loadConfig, loadCustomRules, resolveProfile, rules, sanitize } from '../src/index.js';
+import { loadConfig, loadCustomRules, resolveProfile, rules, sanitize, sanitizeText } from '../src/index.js';
 import { decryptMapping, encryptMapping, reportDigest } from '../src/mapping.js';
 
 const DEFAULT_PASSPHRASE_ENV = 'SANITRACE_MAPPING_PASSPHRASE';
@@ -15,11 +15,26 @@ const FORMAT_NAMES = ['auto', 'codex', 'claude', 'opencode', 'gemini', 'text'];
 const FORMATS = new Set(FORMAT_NAMES);
 const MAPPING_WARNING = 'sanitrace: mapping contains original secrets; avoid logging stdout.';
 
+// Report-only flags that have no meaning in raw mode. Order matches the spec so
+// the first conflicting flag is the one named in the error.
+const RAW_REPORT_FLAGS = [
+  { key: 'profile', message: '--raw does not support --profile' },
+  { key: 'mapping', message: '--mapping requires a report' },
+  { key: 'mapping-passphrase-env', message: '--raw does not support --mapping-passphrase-env' },
+  { key: 'force', message: '--raw does not support --force' },
+  { key: 'max-total', message: '--raw does not support --max-total' },
+  { key: 'max-tool-chars', message: '--raw does not support --max-tool-chars' },
+  { key: 'keep-reasoning', message: '--raw does not support --keep-reasoning' },
+  { key: 'keep-developer', message: '--raw does not support --keep-developer' },
+  { key: 'no-outputs', message: '--raw does not support --no-outputs' },
+];
+
 const HELP = `sanitrace: turn an agent session log into a redacted Markdown report
 
 Usage
   sanitrace <session.jsonl> [options]      write a report to stdout
   cat session.jsonl | sanitrace - [options]
+  sanitrace <input> --raw [options]        write redacted text to stdout
   sanitrace rules                          list detectors
   sanitrace mapping show <file> [--report <report>]
                                            decrypt a mapping to stdout
@@ -41,6 +56,7 @@ Options
       --no-emails         keep email addresses
       --no-ips            keep IP addresses
       --keep-path <path>  leave an absolute path prefix untouched
+      --raw               write redacted text without a report (text mode only)
       --check             exit 1 when anything was redacted (for CI)
       --no-verify         skip the post-render residual check
       --json              emit JSON with the report, findings and residuals
@@ -97,11 +113,12 @@ try {
       'no-entropy': { type: 'boolean', default: false },
       'no-emails': { type: 'boolean', default: false },
       'no-ips': { type: 'boolean', default: false },
+      raw: { type: 'boolean', default: false },
       check: { type: 'boolean', default: false },
       'no-verify': { type: 'boolean', default: false },
       json: { type: 'boolean', default: false },
       mapping: { type: 'string' },
-      'mapping-passphrase-env': { type: 'string', default: DEFAULT_PASSPHRASE_ENV },
+      'mapping-passphrase-env': { type: 'string' },
       force: { type: 'boolean', default: false },
       report: { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
@@ -144,27 +161,39 @@ async function main() {
   });
 
   if (command === 'rules') return printRules(customRules);
-  if (!FORMATS.has(values.format)) {
+  if (values.raw) {
+    if (values.format !== 'auto' && values.format !== 'text') {
+      throw new Error('--raw supports --format text only');
+    }
+    const conflict = firstRawConflict(values);
+    if (conflict) throw new Error(conflict);
+  } else if (!FORMATS.has(values.format)) {
     throw new Error(
       `Unknown format "${values.format}". Valid formats: ${FORMAT_NAMES.join(', ')}`,
     );
   }
 
-  const settings = {
-    format: values.format,
-    profile: resolveProfile(values.profile ?? config.profile),
+  const detectors = {
     allow: [...(config.allow ?? []), ...values.allow],
     disable: [...(config.disable ?? []), ...values.disable],
     entropy: values['no-entropy'] ? false : (config.entropy ?? true),
     emails: values['no-emails'] ? false : (config.emails ?? true),
     ips: values['no-ips'] ? false : (config.ips ?? true),
+    keepPaths: [...(config.keepPaths ?? []), ...values['keep-path']],
+    rules: customRules,
+  };
+
+  if (values.raw) return runRaw(command, detectors);
+
+  const settings = {
+    ...detectors,
+    format: values.format,
+    profile: resolveProfile(values.profile ?? config.profile),
     reasoning: values['keep-reasoning'] || config.reasoning === true,
     developer: values['keep-developer'] || config.developer === true,
     outputs: values['no-outputs'] ? false : (config.outputs ?? true),
     maxToolChars: Number(values['max-tool-chars'] ?? config.maxToolChars ?? 2000),
     maxTotal: Number(values['max-total'] ?? config.maxTotal ?? 120_000),
-    keepPaths: [...(config.keepPaths ?? []), ...values['keep-path']],
-    rules: customRules,
   };
 
   if (!Number.isFinite(settings.maxToolChars) || settings.maxToolChars < 100) {
@@ -175,7 +204,7 @@ async function main() {
   let passphrase = null;
   let mappingPath = null;
   if (mappingRequested) {
-    passphrase = mappingPassphrase(values['mapping-passphrase-env']);
+    passphrase = mappingPassphrase(values['mapping-passphrase-env'] ?? DEFAULT_PASSPHRASE_ENV);
     mappingPath = await prepareMappingPath(values.mapping, values.out, values.force);
   }
 
@@ -239,6 +268,62 @@ async function main() {
   else if (values.check && total > 0) process.exitCode = 1;
 }
 
+// Raw mode skips the parser and the renderer. The report-only flags have no
+// meaning here, so name the first one and stop before reading the input.
+function firstRawConflict(values) {
+  for (const { key, message } of RAW_REPORT_FLAGS) {
+    const value = values[key];
+    if (key === 'mapping-passphrase-env' || key === 'max-total' || key === 'max-tool-chars') {
+      if (value !== undefined) return message;
+    } else if (key === 'profile' || key === 'mapping') {
+      if (value !== undefined) return message;
+    } else if (value === true) {
+      return message;
+    }
+  }
+  return null;
+}
+
+async function runRaw(command, detectors) {
+  const source = command === '-' ? await readStdin() : await readFile(command, 'utf8');
+  if (!source.trim()) throw new Error('input is empty');
+
+  const { text, findings, residual } = sanitizeText(source, {
+    ...detectors,
+    noVerify: values['no-verify'],
+  });
+
+  if (residual.length > 0 && !values['no-verify']) {
+    process.stderr.write(
+      `sanitrace: verify found ${residual.length} possible leftover(s):\n` +
+        residual
+          .slice(0, 5)
+          .map((hit) => `  ${hit.rule}: ${hit.sample}`)
+          .join('\n') +
+        '\n',
+    );
+  }
+
+  if (values.json) {
+    const payload = `${JSON.stringify({ text, findings, residual }, null, 2)}\n`;
+    if (values.out) await writeFile(values.out, payload);
+    else process.stdout.write(payload);
+  } else if (values.out) {
+    await writeFile(values.out, text);
+    process.stderr.write(`sanitrace: wrote ${values.out}\n`);
+  } else {
+    process.stdout.write(text);
+  }
+
+  const total = findings.reduce((sum, finding) => sum + finding.count, 0);
+  process.stderr.write(
+    `sanitrace: ${total} redaction(s) across ${findings.length} rule(s)\n`,
+  );
+
+  if (residual.length > 0 && !values['no-verify']) process.exitCode = 3;
+  else if (values.check && total > 0) process.exitCode = 1;
+}
+
 async function showMapping() {
   const subcommand = positionals[1];
   const mappingFile = positionals[2];
@@ -247,7 +332,7 @@ async function showMapping() {
   }
   if (positionals.length > 3) throw new Error(`unexpected argument: ${positionals[3]}`);
 
-  const passphrase = mappingPassphrase(values['mapping-passphrase-env']);
+  const passphrase = mappingPassphrase(values['mapping-passphrase-env'] ?? DEFAULT_PASSPHRASE_ENV);
   let contents;
   try {
     contents = await readFile(mappingFile, 'utf8');

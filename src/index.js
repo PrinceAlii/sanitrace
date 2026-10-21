@@ -2,6 +2,7 @@
 
 import os from 'node:os';
 import path from 'node:path';
+import process from 'node:process';
 
 import { parse } from './parse.js';
 import { redact, verify } from './redact.js';
@@ -87,6 +88,33 @@ export function sanitize(text, options = {}) {
   const result = { markdown, findings, residual, parsed };
   if (wantsMapping) result.mapping = mergeMapping(entries, pathEntries, parsed.meta.cwd);
   return result;
+}
+
+/**
+ * Redacts plain text without parsing or rendering a report. Keeps the input
+ * except for replacements, so CRLF and a missing trailing newline survive.
+ * @param {string} text
+ * @param {SanitizeOptions & {cwd?: string}} [options]
+ * @returns {{
+ *   text: string,
+ *   findings: {rule: string, label: string, count: number, samples: string[]}[],
+ *   residual: {rule: string, sample: string}[]
+ * }}
+ */
+export function sanitizeText(text, options = {}) {
+  const redactOptions = {
+    allow: options.allow ?? [],
+    disable: options.disable ?? [],
+    entropy: options.entropy,
+    emails: options.emails,
+    ips: options.ips,
+    paths: pathMappings(options.cwd ?? process.cwd(), options.keepPaths ?? []),
+    rules: options.rules ?? options.customRules ?? [],
+  };
+
+  const { text: redacted, findings } = redact(String(text), redactOptions);
+  const residual = options.noVerify === true ? [] : verify(redacted, redactOptions);
+  return { text: redacted, findings, residual };
 }
 
 function mergeMapping(entries, pathEntries, cwd) {
