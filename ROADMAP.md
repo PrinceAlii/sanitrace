@@ -1,6 +1,6 @@
 # Roadmap
 
-Repository version: 0.3.0 (2026-10-21). The latest npm release is 0.1.0. Items
+Repository version: 0.3.0 (2026-10-21). The latest npm release is 0.3.0. Items
 under "Shipped in 0.2.0" and "Shipped in 0.3.0" are implemented in this
 repository. The remaining items are proposals.
 
