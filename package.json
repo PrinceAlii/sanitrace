@@ -20,7 +20,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "lint": "node --check bin/sanitrace.js && node --check src/index.js && node --check src/redact.js && node --check src/parse.js && node --check src/render.js",
+    "lint": "node --check bin/sanitrace.js && node --check src/index.js && node --check src/redact.js && node --check src/custom-rules.js && node --check src/parse.js && node --check src/render.js",
     "demo": "node bin/sanitrace.js test/fixtures/codex-rollout.jsonl"
   },
   "keywords": [

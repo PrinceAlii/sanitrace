@@ -5,7 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
 
-import { loadConfig, resolveProfile, rules, sanitize } from '../src/index.js';
+import { loadConfig, loadCustomRules, resolveProfile, rules, sanitize } from '../src/index.js';
 
 const HELP = `sanitrace: turn an agent session log into a redacted Markdown report
 
@@ -19,6 +19,7 @@ Options
       --format <name>     auto (default), codex, claude, text
       --profile <name>    report profile: bug (default), security, review
       --config <file>     use a specific .sanitrace.json
+      --rule-module <path> load a rule module (repeatable)
       --allow <value>     never redact a value (repeatable)
       --disable <rule>    skip a detector by id (repeatable)
       --max-tool-chars    characters of tool output to keep (default 2000)
@@ -45,7 +46,7 @@ Config
   { "allow": [], "disable": [], "entropy": true, "emails": true,
     "ips": true, "reasoning": false, "outputs": true, "developer": false,
     "maxToolChars": 2000, "maxTotal": 120000, "keepPaths": [],
-    "profile": "bug" }
+    "profile": "bug", "customRules": [], "ruleModules": [] }
 
 No network access.
 `;
@@ -59,6 +60,7 @@ try {
       format: { type: 'string', default: 'auto' },
       profile: { type: 'string' },
       config: { type: 'string' },
+      'rule-module': { type: 'string', multiple: true, default: [] },
       allow: { type: 'string', multiple: true, default: [] },
       disable: { type: 'string', multiple: true, default: [] },
       'max-tool-chars': { type: 'string' },
@@ -97,14 +99,21 @@ async function main() {
   }
 
   const command = positionals[0];
-  if (command === 'rules') return printRules();
   if (!command) {
     process.stdout.write(HELP);
     process.exitCode = 2;
     return;
   }
 
-  const { config } = loadConfig(values.config);
+  const { config, file } = loadConfig(values.config);
+  const customRules = await loadCustomRules({
+    config,
+    file,
+    modules: values['rule-module'],
+  });
+
+  if (command === 'rules') return printRules(customRules);
+
   const settings = {
     format: values.format,
     profile: resolveProfile(values.profile ?? config.profile),
@@ -119,6 +128,7 @@ async function main() {
     maxToolChars: Number(values['max-tool-chars'] ?? config.maxToolChars ?? 2000),
     maxTotal: Number(values['max-total'] ?? config.maxTotal ?? 120_000),
     keepPaths: [...(config.keepPaths ?? []), ...values['keep-path']],
+    rules: customRules,
   };
 
   if (!Number.isFinite(settings.maxToolChars) || settings.maxToolChars < 100) {
@@ -171,8 +181,13 @@ async function readStdin() {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-function printRules() {
-  const lines = ['id\tplaceholder\tdescription'];
-  for (const rule of rules()) lines.push(`${rule.id}\t${rule.placeholder}\t${rule.description}`);
+function printRules(customRules = []) {
+  const lines = ['id\tplaceholder\tdescription\tsource'];
+  for (const rule of rules()) {
+    lines.push(`${rule.id}\t${rule.placeholder}\t${rule.description}\tbuiltin`);
+  }
+  for (const rule of customRules) {
+    lines.push(`${rule.id}\t[${rule.label}_N]\t${rule.description}\t${rule.source}`);
+  }
   process.stdout.write(`${lines.join('\n')}\n`);
 }

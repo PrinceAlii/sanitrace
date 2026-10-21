@@ -1,0 +1,5 @@
+Deploy failed with ACME_TOKEN=acme_A1b2C3d4E5f6G7h8I9j0K1l2 on the staging host.
+Retry used acme_Z9y8X7w6V5u4T3s2R1q0P9o8 and the same value acme_Z9y8X7w6V5u4T3s2R1q0P9o8.
+Backup used acme_Q1w2E3r4T5y6U7i8O9p0A1s2.
+Reviewers EMP-123456 and EMP-654321 approved the change.
+The allowlisted value acme_Allowed00000000000000000 must stay visible.

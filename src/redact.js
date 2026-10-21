@@ -134,6 +134,17 @@ function shannonEntropy(value) {
 }
 
 /**
+ * @typedef {object} CustomRule
+ * @property {string} id
+ * @property {string} label
+ * @property {string|RegExp} pattern
+ * @property {string} [flags]
+ * @property {number} [keepGroup]
+ * @property {string} [description]
+ * @property {string} [source]
+ */
+
+/**
  * @typedef {object} RedactOptions
  * @property {string[]} [allow] literal values that should never be redacted
  * @property {string[]} [disable] rule ids to skip
@@ -141,6 +152,8 @@ function shannonEntropy(value) {
  * @property {boolean} [emails] redact emails (default true)
  * @property {boolean} [ips] redact IP addresses (default true)
  * @property {{from: string, to: string}[]} [paths] literal prefixes to map to placeholders
+ * @property {CustomRule[]} [rules] custom rules that run after the built-ins
+ * @property {CustomRule[]} [customRules] alias for rules
  */
 
 /**
@@ -152,6 +165,7 @@ function shannonEntropy(value) {
 export function redact(input, options = {}) {
   const allow = options.allow ?? [];
   const disabled = new Set(options.disable ?? []);
+  const customRules = options.rules ?? options.customRules ?? [];
   const counters = new Map();
   const samples = new Map();
   const seen = new Map();
@@ -168,6 +182,18 @@ export function redact(input, options = {}) {
 
       const token = placeholderFor(rule, match, counters, samples, seen);
       return rule.replace ? rule.replace(token, ...args) : token;
+    });
+  }
+
+  for (const rule of customRules) {
+    if (disabled.has(rule.id)) continue;
+    text = text.replace(toGlobal(rule.pattern, rule.flags), (...args) => {
+      const match = args[0];
+      if (isAllowed(match, allow)) return match;
+
+      const token = placeholderFor(rule, match, counters, samples, seen);
+      const kept = keptGroup(rule, args);
+      return kept === null ? token : `${kept}${token}`;
     });
   }
 
@@ -197,7 +223,10 @@ export function redact(input, options = {}) {
     });
   }
 
-  return { text, findings: toFindings(counters, samples) };
+  const definitions = new Map(
+    [...RULES, ENTROPY_RULE, PATH_RULE, ...customRules].map((rule) => [rule.id, rule]),
+  );
+  return { text, findings: toFindings(counters, samples, definitions) };
 }
 
 /**
@@ -210,6 +239,8 @@ export function redact(input, options = {}) {
 export function verify(input, options = {}) {
   const allow = options.allow ?? [];
   const disabled = new Set(options.disable ?? []);
+  const customRules = options.rules ?? options.customRules ?? [];
+  const labels = placeholderLabels(customRules);
   const hits = [];
   const text = String(input);
 
@@ -220,10 +251,22 @@ export function verify(input, options = {}) {
     for (const match of text.matchAll(rule.pattern)) {
       if (isAllowed(match[0], allow)) continue;
       const sample = rule.id === 'env-assignment' ? (match[2] ?? match[0]) : match[0];
-      if (isPlaceholder(sample)) continue;
+      if (isPlaceholder(sample, labels)) continue;
       hits.push({ rule: rule.id, sample: sample.slice(0, 80) });
     }
   }
+
+  for (const rule of customRules) {
+    if (disabled.has(rule.id)) continue;
+    for (const match of text.matchAll(toGlobal(rule.pattern, rule.flags))) {
+      if (isAllowed(match[0], allow)) continue;
+      const value = customMatchValue(rule, match);
+      if (value.length === 0) continue;
+      if (isPlaceholder(match[0], labels) || isPlaceholder(value, labels)) continue;
+      hits.push({ rule: rule.id, sample: value.slice(0, 80) });
+    }
+  }
+
   return hits;
 }
 
@@ -256,9 +299,9 @@ function placeholderFor(rule, match, counters, samples, seen) {
   return token;
 }
 
-function toFindings(counters, samples) {
+function toFindings(counters, samples, definitions) {
   return [...counters.entries()].map(([rule, count]) => {
-    const definition = [...RULES, ENTROPY_RULE, PATH_RULE].find((item) => item.id === rule);
+    const definition = definitions.get(rule);
     return { rule, label: definition?.label ?? rule, count, samples: samples.get(rule) ?? [] };
   });
 }
@@ -267,10 +310,44 @@ function isAllowed(match, allow) {
   return allow.some((entry) => entry && (match === entry || match.includes(entry)));
 }
 
-function isPlaceholder(value) {
+function placeholderLabels(customRules) {
+  if (customRules.length === 0) return PLACEHOLDER_LABELS;
+  return new Set([
+    ...PLACEHOLDER_LABELS,
+    ...customRules.map((rule) => rule.label).filter(Boolean),
+  ]);
+}
+
+function isPlaceholder(value, labels = PLACEHOLDER_LABELS) {
   const inner = value
     .replace(/[.,;:!?]+$/, '')
     .replace(/^\[|\]$/g, '')
     .replace(/_\d+$/, '');
-  return PLACEHOLDER_LABELS.has(inner);
+  return labels.has(inner);
+}
+
+function toGlobal(pattern, flags = '') {
+  const extraFlags = typeof flags === 'string' ? flags : '';
+  if (pattern instanceof RegExp) {
+    const combined = new Set([...pattern.flags, ...extraFlags]);
+    combined.add('g');
+    return new RegExp(pattern.source, [...combined].join(''));
+  }
+  if (typeof pattern !== 'string') {
+    throw new Error('Custom rule pattern must be a string or RegExp');
+  }
+  return new RegExp(pattern, [...new Set(`${extraFlags}g`)].join(''));
+}
+
+function keptGroup(rule, args) {
+  if (!rule.keepGroup) return null;
+  const value = args[rule.keepGroup];
+  return typeof value === 'string' ? value : null;
+}
+
+function customMatchValue(rule, match) {
+  if (!rule.keepGroup || match[rule.keepGroup] === undefined) return match[0];
+  return match[0].startsWith(match[rule.keepGroup])
+    ? match[0].slice(match[rule.keepGroup].length)
+    : match[0];
 }

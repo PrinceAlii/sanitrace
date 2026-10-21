@@ -19,8 +19,9 @@ log and can be read before it is published.
 - Parses Codex rollouts, Claude Code transcripts, and plain text, and detects
   the format.
 - Replaces detected credentials and addresses with numbered placeholders such
-  as `[OPENAI_KEY_1]`. Thirteen detectors, an entropy pass, and path mapping
-  cover the common cases.
+  as `[OPENAI_KEY_1]`. Thirteen built-in detectors, an entropy pass, and path
+  mapping cover the common cases. Custom rules add formats from the config or a
+  local ESM module.
 - Drops reasoning summaries and developer/system messages by default, and
   truncates tool output to 2000 characters.
 - Budgets reports at 120,000 characters by scaling block text, then eliding
@@ -82,10 +83,10 @@ $ sanitrace rules                           # list detectors
 $ sanitrace <session.jsonl> --check         # exit 1 if anything was redacted
 ```
 
-Flags: `--profile <name>`, `--allow <value>` (never redact, repeatable),
-`--no-emails`, `--no-ips`, `--no-entropy`, `--no-outputs`, `--keep-reasoning`,
-`--keep-developer`, `--max-tool-chars <n>`, `--max-total <n>`, `--json`,
-`--format`.
+Flags: `--profile <name>`, `--rule-module <path>` (repeatable),
+`--allow <value>` (never redact, repeatable), `--no-emails`, `--no-ips`,
+`--no-entropy`, `--no-outputs`, `--keep-reasoning`, `--keep-developer`,
+`--max-tool-chars <n>`, `--max-total <n>`, `--json`, `--format`.
 
 The verify pass runs by default. Pass `--no-verify` to skip the second
 detection pass.
@@ -136,6 +137,72 @@ override the file. Unknown keys are an error.
 }
 ```
 
+## Custom detectors
+
+Add a regex rule to `.sanitrace.json` when a credential format is missing:
+
+```json
+{
+  "customRules": [
+    {
+      "id": "acme-token",
+      "label": "ACME_TOKEN",
+      "description": "Acme service tokens",
+      "pattern": "\\bacme_[A-Za-z0-9]{24}\\b"
+    }
+  ],
+  "ruleModules": ["./tools/sanitrace-rules.mjs"]
+}
+```
+
+| Field | Required | Rule |
+| --- | --- | --- |
+| `id` | yes | Lowercase, 2 to 32 characters: letters, digits, hyphens |
+| `label` | yes | Uppercase, 2 to 32 characters: letters, digits, underscores |
+| `description` | yes | 5 to 120 characters on one line |
+| `pattern` | yes | Regex source string |
+| `flags` | no | Any of `i`, `m`, `s` |
+| `keepGroup` | no | Capture group number, 1 or greater |
+
+Rule ids and labels must be unique and must not reuse a built-in id or label.
+
+The placeholder is `[LABEL_N]`. A repeated value keeps the same placeholder, and
+the count covers every occurrence. `keepGroup` keeps the text of that capture
+group before the placeholder. If the group does not participate, the placeholder
+appears alone. The report shows the label and never prints the description.
+
+Custom rules run after the built-in detectors and before path mapping and the
+entropy pass. The order is `customRules`, then `ruleModules` in config order,
+then `--rule-module` in flag order. Config module paths resolve relative to the
+config file directory. `--rule-module` paths resolve relative to the working
+directory.
+
+A rule module default-exports an array of rule objects:
+
+```js
+export default [
+  {
+    id: 'employee-id',
+    label: 'EMPLOYEE_ID',
+    description: 'Internal employee identifiers',
+    pattern: /\bEMP-\d{6}\b/g,
+  },
+];
+```
+
+In a module, patterns may be strings or regex literals. Literal `i`, `m`, and
+`s` flags are allowed, and `g` is added when missing. `sanitrace rules` adds a
+`source` column with `builtin`, `config:<path>`, or `module:<path>`.
+
+Limits: 50 custom rules, 1,000 characters per pattern, and 20,000 characters
+across all patterns. A pattern that matches an empty string is rejected.
+`--allow` matches custom rule values, and `--disable` accepts custom rule ids.
+
+A rule module runs as executable code with your privileges, including network
+access. Read a module before you run it. The regex engine has no timeout, so a
+pattern with catastrophic backtracking can block the process. Do not load rule
+files from an untrusted source.
+
 ## Continuous integration
 
 ```yaml
@@ -172,8 +239,8 @@ customer data in tool output, and credentials that no rule matches. The verify
 pass re-runs only the rules that exist, so read the report before publishing it.
 
 The entropy pass can replace identifiers that are not secrets. Use
-`--no-entropy` to disable it. Add a rule and a fixture when a credential format
-is missing; see [CONTRIBUTING.md](CONTRIBUTING.md).
+`--no-entropy` to disable it. Use a custom rule for an internal format, or add a
+built-in rule and a fixture; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Development
 

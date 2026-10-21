@@ -1,0 +1,19 @@
+{
+  "disable": ["env-assignment"],
+  "customRules": [
+    {
+      "id": "acme-assignment",
+      "label": "ACME_ASSIGNMENT",
+      "description": "Acme token assignments with the variable name kept",
+      "pattern": "\\b(ACME_TOKEN=)acme_[A-Za-z0-9]{24}\\b",
+      "keepGroup": 1
+    },
+    {
+      "id": "acme-token",
+      "label": "ACME_TOKEN",
+      "description": "Acme service tokens",
+      "pattern": "\\bacme_[A-Za-z0-9]{24}\\b"
+    }
+  ],
+  "ruleModules": ["./rules.mjs"]
+}

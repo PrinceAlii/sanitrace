@@ -11,6 +11,7 @@ export { detectFormat, parse } from './parse.js';
 export { redact, rules, verify } from './redact.js';
 export { PROFILE_NAMES, render, resolveProfile } from './render.js';
 export { loadConfig } from './config.js';
+export { loadCustomRules } from './custom-rules.js';
 
 /**
  * @typedef {object} SanitizeOptions
@@ -27,6 +28,10 @@ export { loadConfig } from './config.js';
  * @property {number} [maxToolChars]
  * @property {number} [maxTotal]
  * @property {string[]} [keepPaths] absolute prefixes to leave as-is
+ * @property {{id: string, label: string, pattern: RegExp, keepGroup?: number}[]} [rules]
+ *   custom rules that run after the built-ins
+ * @property {{id: string, label: string, pattern: RegExp, keepGroup?: number}[]} [customRules]
+ *   alias for rules
  */
 
 /**
@@ -54,6 +59,7 @@ export function sanitize(text, options = {}) {
     emails: options.emails,
     ips: options.ips,
     paths: pathMappings(parsed.meta.cwd, options.keepPaths ?? []),
+    rules: options.rules ?? options.customRules ?? [],
   };
 
   const { text: body, findings } = redact(draft, redactOptions);

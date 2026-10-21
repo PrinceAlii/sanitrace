@@ -16,6 +16,8 @@ const KNOWN_KEYS = new Set([
   'maxToolChars',
   'maxTotal',
   'keepPaths',
+  'customRules',
+  'ruleModules',
 ]);
 
 /**
@@ -45,6 +47,14 @@ export function loadConfig(explicit, from = process.cwd()) {
     }
     if (key === 'profile' && typeof raw[key] !== 'string') {
       throw new Error(`Config key "profile" must be a string in ${file}`);
+    }
+    if (key === 'customRules' && !Array.isArray(raw[key])) {
+      throw new Error(`Config key "customRules" must be an array in ${file}`);
+    }
+    if (key === 'ruleModules') {
+      if (!Array.isArray(raw[key]) || raw[key].some((entry) => typeof entry !== 'string')) {
+        throw new Error(`Config key "ruleModules" must be an array of strings in ${file}`);
+      }
     }
   }
 

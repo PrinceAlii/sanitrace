@@ -5,6 +5,11 @@
 - Add `bug`, `security`, and `review` report profiles, selected with `--profile`
   or the `profile` config key. The default `bug` report is unchanged.
 - Add `"profile"` to `--json` output.
+- Add `customRules` and `ruleModules` config keys and the repeatable
+  `--rule-module` flag for local ESM rule modules.
+- Custom rules run after the built-in detectors and before path mapping and the
+  entropy pass. `sanitrace rules` adds a `source` column, and `--json` findings
+  include custom rules.
 
 ## 0.1.1
 

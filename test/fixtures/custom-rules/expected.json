@@ -1,0 +1,10 @@
+{
+  "placeholders": [
+    "[ACME_ASSIGNMENT_1]",
+    "[ACME_TOKEN_1]",
+    "[ACME_TOKEN_2]",
+    "[EMPLOYEE_ID_1]",
+    "[EMPLOYEE_ID_2]"
+  ],
+  "unchanged": ["acme_Allowed00000000000000000"]
+}
