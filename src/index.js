@@ -5,11 +5,17 @@ import path from 'node:path';
 
 import { parse } from './parse.js';
 import { redact, verify } from './redact.js';
-import { REDACTIONS_MARKER, redactionTable, render, resolveProfile } from './render.js';
+import {
+  REDACTIONS_MARKER,
+  redactionTable,
+  render,
+  resolveProfile,
+  stampTurnIds,
+} from './render.js';
 
 export { detectFormat, parse } from './parse.js';
 export { redact, rules, verify } from './redact.js';
-export { PROFILE_NAMES, render, resolveProfile } from './render.js';
+export { PROFILE_NAMES, render, resolveProfile, stampTurnIds } from './render.js';
 export { loadConfig } from './config.js';
 export { loadCustomRules } from './custom-rules.js';
 
@@ -80,8 +86,9 @@ export function sanitize(text, options = {}) {
   } = redact(draft, redactOptions);
 
   // The summary itself contains placeholders only, so it is safe to append after
-  // redaction instead of redacting twice.
-  const markdown = insertSummary(body, findings);
+  // redaction instead of redacting twice. Turn ids hash the redacted text, so
+  // stamp after redaction and summary insertion, and before the verify pass.
+  const markdown = stampTurnIds(insertSummary(body, findings));
   const residual = verify(markdown, redactOptions);
 
   const result = { markdown, findings, residual, parsed };

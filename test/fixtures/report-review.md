@@ -52,11 +52,13 @@
 
 ## Transcript
 
+<!-- sanitrace:turn:1:a2cf075b2156 -->
 ### 1. user
 
 The deploy script fails on my machine but works in CI. Check the env setup, my OPENAI_API_KEY=[OPENAI_KEY_1] is set and so is GITHUB_TOKEN=[GITHUB_TOKEN_1]. Ping me at [EMAIL_1] if it needs my laptop, it is [IPV4_1].
 
 
+<!-- sanitrace:turn:2:32a501b65c73 -->
 ### 2. assistant
 
 <details><summary>reasoning summary · 126 chars</summary>
@@ -97,6 +99,8 @@ KEY
 
 Found it: `scripts/deploy.sh` exports `AWS_ACCESS_KEY_ID` and a `DATABASE_URL` inline, while the CI workflow injects them as secrets. Run `source scripts/deploy.sh` from `<REPO>` and it will work locally too.
 
+
+<!-- sanitrace:turn:end -->
 
 ---
 
