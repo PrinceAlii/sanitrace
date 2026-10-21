@@ -154,6 +154,8 @@ $ npm run demo    # render the fixture
 `src/render.js` writes Markdown, `src/index.js` runs the pipeline, and
 `bin/sanitrace.js` is the CLI. Fixtures with fake credentials live in `test/`.
 
+Planned work is tracked in [ROADMAP.md](ROADMAP.md).
+
 ## License
 
 MIT

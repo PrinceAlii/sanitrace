@@ -36,6 +36,8 @@ and do not throw. Add a fixture and a test that asserts the parsed shape.
 
 - Keep one concern per pull request.
 - Make sure `npm test` passes.
+- Open a spec in `docs/specs/` before a change that adds a flag, a config key, or
+  a session format.
 - If a rule can match legitimate text, name the strings it will affect.
 - Describe any default that changed and why.
 
