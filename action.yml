@@ -1,0 +1,258 @@
+name: sanitrace
+description: Render a redacted agent session report
+
+inputs:
+  path:
+    description: Path to the session log. Relative paths resolve against GITHUB_WORKSPACE.
+    required: true
+  profile:
+    description: Report profile
+    default: bug
+  comment:
+    description: Post or update a comment
+    default: "false"
+  issue-number:
+    description: Issue or pull request number. Defaults to the number in the event payload.
+    required: false
+  artifact-name:
+    description: Artifact name
+    default: sanitrace-report
+  retention-days:
+    description: Artifact retention in days
+    default: "7"
+  fail-on-redaction:
+    description: Fail when at least one redaction occurred
+    default: "false"
+  version:
+    description: >-
+      Exact sanitrace version to install. Defaults to the version in
+      package.json. The value local installs the action checkout and is
+      reserved for the repository self-test.
+    required: false
+
+outputs:
+  report-path:
+    description: Absolute path to report.md in RUNNER_TEMP
+    value: ${{ steps.report.outputs.report-path }}
+  redactions:
+    description: Number of redactions
+    value: ${{ steps.report.outputs.redactions }}
+  residual:
+    description: Number of residual matches
+    value: ${{ steps.report.outputs.residual }}
+  result:
+    description: clean, redacted, residual, or error
+    value: ${{ steps.report.outputs.result }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate the input path
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$INPUT_PATH" ]; then
+          echo "::error::path is required"
+          exit 1
+        fi
+
+        case "$INPUT_PATH" in
+          *$'\n'*|*$'\r'*)
+            echo "::error::path must be a single line"
+            exit 1
+            ;;
+        esac
+
+        if [[ "$INPUT_PATH" = /* ]]; then
+          resolved="$INPUT_PATH"
+        else
+          resolved="${GITHUB_WORKSPACE%/}/$INPUT_PATH"
+        fi
+
+        mkdir -p "$RUNNER_TEMP/sanitrace"
+        printf '%s\n' "$resolved" > "$RUNNER_TEMP/sanitrace/input-path"
+
+        if [ ! -e "$resolved" ]; then
+          echo "::error::sanitrace path does not exist: $resolved"
+          exit 1
+        fi
+
+        if [ ! -f "$resolved" ]; then
+          echo "::error::sanitrace path is not a file: $resolved"
+          exit 1
+        fi
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Resolve the sanitrace version
+      id: version
+      shell: bash
+      env:
+        SANITRACE_VERSION_INPUT: ${{ inputs.version }}
+      run: node "$GITHUB_ACTION_PATH/scripts/action/run.js" resolve-version
+
+    - name: Install sanitrace
+      shell: bash
+      env:
+        SANITRACE_VERSION: ${{ steps.version.outputs.version }}
+        SANITRACE_LOCAL: ${{ steps.version.outputs.local }}
+      run: |
+        set -euo pipefail
+
+        if [ "$SANITRACE_LOCAL" = "true" ]; then
+          npm install --global --no-fund --no-audit "$GITHUB_ACTION_PATH"
+        else
+          npm install --global --no-fund --no-audit "sanitrace@$SANITRACE_VERSION"
+        fi
+
+    - name: Verify the installed version
+      shell: bash
+      env:
+        EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        set -euo pipefail
+
+        installed="$(sanitrace --version)"
+        if [ "$installed" != "$EXPECTED_VERSION" ]; then
+          echo "::error::sanitrace $installed does not match expected version $EXPECTED_VERSION"
+          exit 1
+        fi
+
+    - name: Run sanitrace
+      id: sanitrace
+      shell: bash
+      env:
+        SANITRACE_PROFILE: ${{ inputs.profile }}
+        SANITRACE_FAIL_ON_REDACTION: ${{ inputs.fail-on-redaction }}
+      run: |
+        set -euo pipefail
+
+        input="$(< "$RUNNER_TEMP/sanitrace/input-path")"
+        report="$RUNNER_TEMP/sanitrace/report.json"
+        rm -f "$report"
+
+        args=("$input" --profile "$SANITRACE_PROFILE" --json -o "$report")
+        case "$SANITRACE_FAIL_ON_REDACTION" in
+          [Tt][Rr][Uu][Ee])
+            args+=(--check)
+            ;;
+        esac
+
+        set +e
+        sanitrace "${args[@]}" >/dev/null 2>"$RUNNER_TEMP/sanitrace/stderr.log"
+        code=$?
+        set -e
+
+        printf '%s\n' "$code" > "$RUNNER_TEMP/sanitrace/exit-code"
+        printf 'exit-code=%s\n' "$code" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Extract the report
+      id: report
+      shell: bash
+      env:
+        SANITRACE_REPORT_JSON: ${{ runner.temp }}/sanitrace/report.json
+        SANITRACE_REPORT_MD: ${{ runner.temp }}/sanitrace/report.md
+        SANITRACE_EXIT_CODE: ${{ steps.sanitrace.outputs.exit-code }}
+        SANITRACE_FAIL_ON_REDACTION: ${{ inputs.fail-on-redaction }}
+        SANITRACE_COMMENT_INPUT: ${{ inputs.comment }}
+        SANITRACE_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+      run: node "$GITHUB_ACTION_PATH/scripts/action/run.js" report
+
+    - name: Upload the report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          ${{ runner.temp }}/sanitrace/report.md
+          ${{ runner.temp }}/sanitrace/report.json
+        if-no-files-found: ignore
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Comment on the issue or pull request
+      if: steps.report.outputs.comment == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPOSITORY: ${{ github.repository }}
+        SANITRACE_REPORT_JSON: ${{ runner.temp }}/sanitrace/report.json
+        SANITRACE_COMMENT_PAYLOAD: ${{ runner.temp }}/sanitrace/comment.json
+        SANITRACE_ISSUE_NUMBER_INPUT: ${{ inputs.issue-number }}
+        SANITRACE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        set -euo pipefail
+
+        if ! number="$(node "$GITHUB_ACTION_PATH/scripts/action/run.js" issue-number 2>/dev/null)"; then
+          echo "::warning::comment is true but no issue or pull request number was found"
+          exit 0
+        fi
+
+        case "$number" in
+          ''|*[!0-9]*)
+            echo "::warning::comment is true but no issue or pull request number was found"
+            exit 0
+            ;;
+        esac
+
+        if ! node "$GITHUB_ACTION_PATH/scripts/action/run.js" comment-payload >/dev/null 2>&1; then
+          echo "::warning::the sanitrace comment could not be prepared"
+          exit 0
+        fi
+
+        if ! login="$(gh api user --jq .login 2>/dev/null)"; then
+          echo "::warning::the authenticated GitHub user could not be read; the comment was skipped"
+          exit 0
+        fi
+
+        if ! matches="$(gh api --paginate "repos/${REPOSITORY}/issues/${number}/comments?per_page=100" \
+          --jq '.[] | select(.body | contains("<!-- sanitrace-report -->")) | [.id, .user.login] | @tsv' 2>/dev/null)"; then
+          echo "::warning::the issue comments could not be read; the comment was skipped"
+          exit 0
+        fi
+
+        existing=""
+        while IFS=$'\t' read -r id author; do
+          if [ -n "$id" ] && [ "$author" = "$login" ]; then
+            existing="$id"
+            break
+          fi
+        done <<< "$matches"
+
+        if [ -n "$existing" ]; then
+          if ! gh api --method PATCH "repos/${REPOSITORY}/issues/comments/${existing}" \
+            --input "$SANITRACE_COMMENT_PAYLOAD" >/dev/null 2>&1; then
+            echo "::warning::the sanitrace comment could not be updated"
+          fi
+        else
+          if ! gh api --method POST "repos/${REPOSITORY}/issues/${number}/comments" \
+            --input "$SANITRACE_COMMENT_PAYLOAD" >/dev/null 2>&1; then
+            echo "::warning::the sanitrace comment could not be created"
+          fi
+        fi
+
+        exit 0
+
+    - name: Exit with the sanitrace result
+      if: always() && steps.report.outcome == 'success' && steps.sanitrace.outputs.exit-code != ''
+      shell: bash
+      env:
+        SANITRACE_EXIT_CODE: ${{ steps.sanitrace.outputs.exit-code }}
+      run: |
+        set -euo pipefail
+
+        case "$SANITRACE_EXIT_CODE" in
+          0|1|2|3)
+            exit "$SANITRACE_EXIT_CODE"
+            ;;
+          *)
+            echo "::error::sanitrace exited with an unexpected code $SANITRACE_EXIT_CODE"
+            exit 2
+            ;;
+        esac

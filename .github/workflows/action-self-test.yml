@@ -1,0 +1,116 @@
+name: action self-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  codex:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the action
+        id: action
+        uses: ./
+        with:
+          path: test/fixtures/codex-rollout.jsonl
+          version: local
+          comment: false
+      - name: Check the outputs
+        env:
+          REDACTIONS: ${{ steps.action.outputs.redactions }}
+          RESIDUAL: ${{ steps.action.outputs.residual }}
+          RESULT: ${{ steps.action.outputs.result }}
+          REPORT_PATH: ${{ steps.action.outputs.report-path }}
+        run: |
+          set -euo pipefail
+          test "$RESULT" = "redacted"
+          test "$RESIDUAL" = "0"
+          test "$REDACTIONS" -gt 0
+          test -f "$REPORT_PATH"
+
+  artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the action
+        uses: ./
+        with:
+          path: test/fixtures/claude-transcript.jsonl
+          version: local
+          comment: false
+          artifact-name: sanitrace-action-self-test
+      - name: Download the artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sanitrace-action-self-test
+          path: artifact
+      - name: Check the artifact files
+        run: |
+          set -euo pipefail
+          test -f artifact/report.md
+          test -f artifact/report.json
+
+  missing-path:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the action with a missing path
+        id: action
+        continue-on-error: true
+        uses: ./
+        with:
+          path: does/not/exist.jsonl
+          version: local
+      - name: Check the failure
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = "failure"
+          test -f "$RUNNER_TEMP/sanitrace/input-path"
+          test "$(< "$RUNNER_TEMP/sanitrace/input-path")" = "$GITHUB_WORKSPACE/does/not/exist.jsonl"
+
+  unknown-profile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the action with an unknown profile
+        id: action
+        continue-on-error: true
+        uses: ./
+        with:
+          path: test/fixtures/codex-rollout.jsonl
+          profile: unknown
+          version: local
+      - name: Check the exit code
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          RESULT: ${{ steps.action.outputs.result }}
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = "failure"
+          test "$RESULT" = "error"
+          test "$(< "$RUNNER_TEMP/sanitrace/exit-code")" = "2"
+
+  exit-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the comment decision helper
+        run: |
+          set -euo pipefail
+          test "$(node scripts/action/run.js should-comment 0 false)" = "true"
+          test "$(node scripts/action/run.js should-comment 1 false)" = "true"
+          test "$(node scripts/action/run.js should-comment 1 true)" = "false"
+          test "$(node scripts/action/run.js should-comment 2 false)" = "false"
+          test "$(node scripts/action/run.js should-comment 3 false)" = "false"

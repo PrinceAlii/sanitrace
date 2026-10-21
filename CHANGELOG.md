@@ -4,6 +4,8 @@
 
 - Add OpenCode 2.1.1 export and Gemini CLI transcript parsers with automatic
   detection and plain-text fallback.
+- Add a composite GitHub Action that runs sanitrace, uploads the report and
+  findings, and optionally comments on an issue or pull request.
 
 ## 0.2.0
 

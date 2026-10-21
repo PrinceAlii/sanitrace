@@ -1,6 +1,6 @@
 # 0005: GitHub Action
 
-Status: Accepted
+Status: Implemented
 Target: 0.3.0
 Depends on: 0002 for the `profile` input
 
@@ -98,11 +98,11 @@ runs:
 | `artifact-name` | `sanitrace-report` | Name for `actions/upload-artifact`. |
 | `retention-days` | `7` | Passed to the upload action. |
 | `fail-on-redaction` | `false` | `true` maps to `--check`. |
-| `version` | package version | Exact semver. The action reads `package.json` at `github.action_path` when the input is empty. |
+| `version` | package version | Exact semver. The action reads `package.json` at `github.action_path` when the input is empty. The value `local` installs the action checkout and is reserved for this repository's self-test. |
 
 The action rejects a `version` that does not match
-`^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$`. It does not accept `latest` or a
-git ref.
+`^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$`, except for the test-only `local`
+value. It does not accept `latest` or a git ref.
 
 ### Steps
 
@@ -110,8 +110,9 @@ git ref.
    it does not.
 2. Set up Node 22 with `actions/setup-node@v4`.
 3. Install sanitrace:
-   `npm install --global --no-fund --no-audit sanitrace@<version>`.
-4. Run `sanitrace --version` and compare it with `<version>`. Fail on a
+   `npm install --global --no-fund --no-audit sanitrace@<version>`. For the
+   test-only `local` value, install `$GITHUB_ACTION_PATH` instead.
+4. Run `sanitrace --version` and compare it with the package version. Fail on a
    mismatch.
 5. Run sanitrace with the profile and `--json -o "$RUNNER_TEMP/sanitrace/report.json"`.
    Capture the exit code without failing the step:
@@ -263,9 +264,9 @@ outside the action's control; pin the action tag as well.
 
 Workflow tests in this repository:
 
-- A `workflow_dispatch` job runs the action on `test/fixtures/codex-rollout.jsonl`
-  with `comment: false` and asserts `redactions > 0`, `residual == 0`, and
-  `result == redacted`.
+- A workflow job runs the action on `test/fixtures/codex-rollout.jsonl` with
+  `version: local` and `comment: false`, and asserts `redactions > 0`,
+  `residual == 0`, and `result == redacted`.
 - A second job runs on `test/fixtures/claude-transcript.jsonl` and asserts the
   artifact contains `report.md` and `report.json`.
 - A job with a missing path asserts a failed step with the resolved path.

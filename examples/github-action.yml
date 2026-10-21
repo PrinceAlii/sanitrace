@@ -1,0 +1,42 @@
+# Example: a pull request that renders a fixture from the repository.
+name: session report
+
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PrinceAlii/sanitrace@v0.3.0
+        with:
+          path: test/fixtures/codex-rollout.jsonl
+          profile: review
+          comment: true
+
+---
+# Example: a manual run on a log that a maintainer placed in a private branch.
+name: session report
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: session-log
+      - uses: PrinceAlii/sanitrace@v0.3.0
+        with:
+          path: logs/session.jsonl
+          issue-number: "42"
+          comment: true

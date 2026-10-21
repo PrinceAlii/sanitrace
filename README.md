@@ -262,6 +262,38 @@ access. Read a module before you run it. The regex engine has no timeout, so a
 pattern with catastrophic backtracking can block the process. Do not load rule
 files from an untrusted source.
 
+## GitHub Action
+
+The composite action installs an exact sanitrace version, runs it on a session
+log, uploads `report.md` and `report.json`, and can update one issue or pull
+request comment.
+
+```yaml
+permissions:
+  contents: read
+  issues: write
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: PrinceAlii/sanitrace@v0.3.0
+    with:
+      path: logs/session.jsonl
+      profile: security
+      comment: true
+      issue-number: ${{ github.event.issue.number }}
+```
+
+The action uploads only the report and findings JSON, never the input log.
+`comment: true` needs `issues: write` for an issue or `pull-requests: write` for
+a pull request. Without `issue-number`, the action reads the number from the
+event payload. `fail-on-redaction: true` maps to `--check`. A residual match
+exits 3 and is never commented.
+
+`version` accepts an exact semver and defaults to the version in the action
+`package.json`. The `local` value installs the action checkout and is reserved
+for this repository's self-test. The action runs on `ubuntu-latest` with Node
+22. Windows and macOS runners are not supported.
+
 ## Continuous integration
 
 ```yaml
