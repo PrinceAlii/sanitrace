@@ -1,0 +1,36 @@
+name: Detector or format request
+description: A credential shape or session format sanitrace does not cover.
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is missing?
+      options:
+        - A credential format that is not redacted
+        - A session format that does not parse
+        - A false positive
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample
+      description: |
+        For credentials, paste a **fake but structurally realistic** value, or a
+        real revoked one. For formats, a five-line excerpt of the log is enough.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Where does this show up?
+      description: Docs link, tool, vendor, or the parser output you expected.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I can open the PR (one rule + one fixture).

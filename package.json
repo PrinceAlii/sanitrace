@@ -1,0 +1,45 @@
+{
+  "name": "sanitrace",
+  "version": "0.1.0",
+  "description": "Turn AI agent session logs into shareable, secret-free bug reports.",
+  "type": "module",
+  "bin": {
+    "sanitrace": "./bin/sanitrace.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "node --check bin/sanitrace.js && node --check src/index.js && node --check src/redact.js && node --check src/parse.js && node --check src/render.js",
+    "demo": "node bin/sanitrace.js test/fixtures/codex-rollout.jsonl"
+  },
+  "keywords": [
+    "codex",
+    "agents",
+    "transcript",
+    "redaction",
+    "secrets",
+    "bug-report",
+    "markdown",
+    "cli"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PrinceAlii/sanitrace.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PrinceAlii/sanitrace/issues"
+  },
+  "author": "Ali Bonagdaran"
+}

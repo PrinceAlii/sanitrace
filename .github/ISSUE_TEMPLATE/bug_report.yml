@@ -1,0 +1,55 @@
+name: Bug report
+description: Something parsed wrong, rendered wrong, or leaked.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A redacted report is worth more than a description. Run:
+
+        ```
+        npx sanitrace <your session log> -o report.md
+        ```
+
+        Read it, then paste the relevant part below. Never paste an unredacted log.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did sanitrace do, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Redacted report
+      description: The metadata header and the affected turn. Raw logs are fine if they are small.
+      render: markdown
+  - type: input
+    id: version
+    attributes:
+      label: sanitrace version
+      placeholder: output of `sanitrace --version`
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version and OS
+      placeholder: node 22.11.0, macOS 15.2
+    validations:
+      required: true
+  - type: textarea
+    id: residual
+    attributes:
+      label: Anything the verify pass flagged?
+      description: If it exited 3, paste the five lines it printed to stderr.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: The report still reproduces on the latest release.
+          required: true
+        - label: I removed anything I did not want public.
+          required: true
