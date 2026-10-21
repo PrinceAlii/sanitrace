@@ -1,6 +1,6 @@
 # 0005: GitHub Action
 
-Status: Draft
+Status: Accepted
 Target: 0.3.0
 Depends on: 0002 for the `profile` input
 

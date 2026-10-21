@@ -1,6 +1,6 @@
 # 0004: Session formats
 
-Status: Draft
+Status: Accepted
 Target: 0.3.0
 Depends on: none
 

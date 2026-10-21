@@ -1,6 +1,6 @@
 # 0003: Mapping export
 
-Status: Draft
+Status: Accepted
 Target: 0.2.0
 Depends on: none
 
