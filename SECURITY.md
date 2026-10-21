@@ -1,28 +1,31 @@
 # Security
 
-`sanitrace` handles session logs that may contain live credentials. Two things
-matter: the tool must not leak them, and a bug in it should be fixable fast.
+sanitrace reads session logs that may contain live credentials. A detector that
+misses a credential, or a report that leaks one, is a security issue.
 
-## Reporting
+## Report a vulnerability
 
-Use GitHub's private vulnerability reporting on this repository (Security →
-Report a vulnerability). Please do not open a public issue for:
+Use GitHub private vulnerability reporting on this repository: Security, then
+Report a vulnerability. Do not open a public issue for:
 
-- a credential class that is not redacted (include the shape, not the secret),
-- a case where `--verify` passes but the report still leaks,
-- path traversal or a write outside `--out`.
+- a credential format that is not redacted
+- a case where `--verify` passes but the report still leaks
+- a write outside the path given with `--out`
 
-You will get an acknowledgement within seven days.
+Include the shape of the secret, not the secret itself. You will receive an
+acknowledgement within seven days.
 
 ## Supported versions
 
-Only the latest published minor version is supported.
+Only the latest published minor version receives fixes.
 
 ## Scope
 
-`sanitrace` is local and dependency-free, so the attack surface is the parser
-(untrusted JSONL) and the renderer. It does not execute session contents.
+The tool is local and has no dependencies. The attack surface is the parser,
+which reads untrusted JSONL, and the renderer. sanitrace does not execute
+session contents.
 
 ## Known limits
 
-Redaction is best-effort. See "Residual risk" in the README.
+Detection covers the rules listed in the README. See [Limits](README.md#limits)
+before publishing a report.

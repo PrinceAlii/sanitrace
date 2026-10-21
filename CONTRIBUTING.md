@@ -1,44 +1,46 @@
 # Contributing
 
-Thanks for helping. The most valuable contributions are new detectors with a
-fixture attached.
+Detectors with a fixture are the easiest change to review. Read
+[AGENTS.md](AGENTS.md) before writing documentation, comments, commit messages,
+or a pull request body.
 
 ## Ground rules
 
-- Keep the runtime dependency count at zero. A new dependency needs a strong
-  reason; a dev dependency needs a reason.
-- Redaction happens on the render's output string, never on a per-field basis.
-  New code paths must still pass `--verify`.
-- No network calls. If a feature needs a server, it goes behind a flag.
+- Keep the runtime dependency count at zero. A dev dependency needs a stated
+  reason.
+- Redact the rendered report as a whole. Do not redact field by field.
+- Do not add network calls. A feature that needs a server goes behind a flag.
 
-## Adding a detector
+## Add a detector
 
-1. Add one object to `RULES` in `src/redact.js`: `id`, `label`, `description`,
-   and a global `pattern`. If the match includes a prefix worth keeping (an env
-   var name, `Bearer`), add a `replace` function that keeps it.
-2. Place it before generic rules. Order is detection order: specific formats
-   first, `HIGH_ENTROPY` last.
-3. Add the pattern to `test/redact.test.js` with a **fake but realistic** value,
-   and one case to the "no residual" fixture in `test/fixtures/`.
-4. Run `npm test`. `--verify` must stay empty for every fixture.
+1. Add one object to `RULES` in `src/redact.js` with `id`, `label`,
+   `description`, and a global `pattern`. If the match has a prefix worth
+   keeping, such as an environment variable name or `Bearer`, add a `replace`
+   function that keeps it.
+2. Place the rule before generic rules. Order is detection order: specific
+   formats first, `HIGH_ENTROPY` last.
+3. Add the pattern to `test/redact.test.js` with a fake but realistic value, and
+   one case to the fixture in `test/fixtures/`.
+4. Run `npm test`. The verify pass must report no matches for every fixture.
 
-Rules must be anchored with `\b` or lookarounds, avoid catastrophic
-backtracking, and never match a placeholder like `[OPENAI_KEY_1]` twice.
+Anchor rules with `\b` or a lookaround. Avoid patterns that backtrack
+catastrophically, and never match a placeholder such as `[OPENAI_KEY_1]` twice.
 
-## Adding a session format
+## Add a session format
 
-Add a parser to `src/parse.js`, extend `detectFormat`, and add an entry to
+Add a parser to `src/parse.js`, extend `detectFormat`, and add a branch in
 `parse`. Parsers are lenient: skip unknown records, count them in `skipped`,
-never throw. Add a fixture and a test that asserts the parsed shape.
+and do not throw. Add a fixture and a test that asserts the parsed shape.
 
 ## Pull requests
 
-- One concern per PR.
-- `npm test` green; describe the trade-off if you changed defaults.
-- If a rule can over-match, say which legitimate strings it will touch.
+- Keep one concern per pull request.
+- Make sure `npm test` passes.
+- If a rule can match legitimate text, name the strings it will affect.
+- Describe any default that changed and why.
 
-## Releasing
+## Release
 
-1. Bump `version` in `package.json` and `src/render.js` (`VERSION`).
-2. Update `CHANGELOG.md`.
-3. `git tag vX.Y.Z && git push --tags`, then `npm publish`.
+1. Bump `version` in `package.json` and `VERSION` in `src/render.js`.
+2. Add an entry to `CHANGELOG.md`.
+3. `git tag vX.Y.Z`, push the tag, then run `npm publish`.

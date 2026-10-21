@@ -1,10 +1,10 @@
 // Markdown renderer.
 //
-// The report is designed to be read before it is pasted: metadata first, then a
-// redaction summary, then the turns. Tool input and output are collapsed into
-// <details> blocks so a 3 MB log still fits in an issue body.
+// The report is ordered for review: metadata, redaction summary, then turns.
+// Tool input and output are collapsed into <details> blocks so a large log fits
+// in an issue body.
 
-const VERSION = '0.1.0';
+export const VERSION = '0.1.1';
 
 const SHELL_TOOLS = new Set(['shell', 'exec', 'exec_command', 'bash', 'run_command', 'apply_patch']);
 
@@ -27,8 +27,8 @@ export function render(parsed, options = {}) {
   lines.push('# Agent session report', '');
   lines.push(
     `> Generated with [sanitrace](https://github.com/PrinceAlii/sanitrace) v${VERSION}. ` +
-      'Secrets and local paths are replaced with typed placeholders such as `[OPENAI_KEY_1]`; ' +
-      'nothing is uploaded anywhere.',
+      'Detected secrets and local paths are replaced with placeholders such as ' +
+      '`[OPENAI_KEY_1]`. The report is written locally.',
     '',
   );
 
@@ -85,8 +85,7 @@ export function render(parsed, options = {}) {
   const budget = options.maxTotal ?? 120_000;
   let total = rendered.reduce((sum, chunk) => sum + chunk.length, 0);
 
-  // Oversized reports are usually one turn with fifty tool calls. Scale every
-  // block's text down first so structure survives, then elide whole turns.
+  // Scale block text before eliding turns so the report keeps its structure.
   if (total > budget * 1.1) {
     const scale = Math.max(0.02, budget / total);
     for (let position = 0; position < rendered.length; position += 1) {
@@ -212,7 +211,7 @@ function shortId(value) {
 function duration(start, end) {
   const from = Date.parse(start);
   const to = Date.parse(end);
-  if (Number.isNaN(from) || Number.isNaN(to) || to < from) return '—';
+  if (Number.isNaN(from) || Number.isNaN(to) || to < from) return 'unknown';
   const seconds = Math.round((to - from) / 1000);
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { detectFormat, parse, sanitize } from '../src/index.js';
+import { VERSION } from '../src/render.js';
 
 const codex = readFileSync(new URL('./fixtures/codex-rollout.jsonl', import.meta.url), 'utf8');
 const claude = readFileSync(new URL('./fixtures/claude-transcript.jsonl', import.meta.url), 'utf8');
@@ -49,6 +50,11 @@ test('renders a redacted report with no residual secrets', () => {
   assert.match(markdown, /\[OPENAI_KEY_1\]/);
   assert.match(markdown, /<REPO>/);
   assert.match(markdown, /## Redactions/);
+});
+
+test('report version matches package.json', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(VERSION, pkg.version);
 });
 
 test('text fallback keeps the transcript verbatim', () => {

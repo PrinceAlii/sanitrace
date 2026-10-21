@@ -91,5 +91,8 @@ test('rule list is stable and documented', () => {
   const ids = rules().map((rule) => rule.id);
   assert.ok(ids.includes('private-key'));
   assert.ok(ids.includes('high-entropy'));
-  for (const rule of rules()) assert.ok(rule.description.length > 5);
+  for (const rule of rules()) {
+    assert.ok(rule.description.length > 5);
+    assert.match(rule.placeholder, /^\[|^</);
+  }
 });

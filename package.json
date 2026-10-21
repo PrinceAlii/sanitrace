@@ -1,10 +1,10 @@
 {
   "name": "sanitrace",
-  "version": "0.1.0",
-  "description": "Turn AI agent session logs into shareable, secret-free bug reports.",
+  "version": "0.1.1",
+  "description": "Turn agent session logs into redacted Markdown bug reports.",
   "type": "module",
   "bin": {
-    "sanitrace": "./bin/sanitrace.js"
+    "sanitrace": "bin/sanitrace.js"
   },
   "exports": {
     ".": "./src/index.js"

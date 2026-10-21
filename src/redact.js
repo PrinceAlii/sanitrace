@@ -1,8 +1,7 @@
 // Redaction engine.
 //
-// Every detector is a plain regex plus a placeholder label. Nothing here talks to
-// the network, and there are no runtime dependencies, so the whole surface is
-// auditable in one file.
+// Every detector is a regex plus a placeholder label. The module has no network
+// access and no runtime dependencies.
 //
 // Order matters: specific formats run before generic ones (a PEM block before the
 // entropy pass, a credential-bearing URL before bare emails, an env assignment
@@ -58,7 +57,7 @@ const RULES = [
   {
     id: 'payment-key',
     label: 'PAYMENT_KEY',
-    description: 'Stripe-style live/secret keys',
+    description: 'Stripe live and test keys',
     pattern: /\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{16,}\b/g,
   },
   {
@@ -76,7 +75,7 @@ const RULES = [
   {
     id: 'env-assignment',
     label: 'ENV_VALUE',
-    description: 'values assigned to secret-looking env vars',
+    description: 'values assigned to names ending in KEY, TOKEN, SECRET, or PASSWORD',
     pattern:
       /\b([A-Z][A-Z0-9_]{2,}(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|CREDENTIALS?|SALT|DSN|WEBHOOK)(?:_[A-Z0-9_]+)?)\s*[=:]\s*["']?([^\s"'#,}]{6,})/g,
     // Keep the variable name, redact only the literal value.
@@ -172,7 +171,7 @@ export function redact(input, options = {}) {
     });
   }
 
-  // Path prefixes: $HOME and the repo root are the biggest identity leaks.
+  // Path prefixes identify the machine and the repository.
   const mappings = [...(options.paths ?? [])].sort((a, b) => b.from.length - a.from.length);
   for (const { from, to } of mappings) {
     if (!from || from === '/') continue;
@@ -233,6 +232,7 @@ export function rules() {
     id,
     label,
     description,
+    placeholder: id === PATH_RULE.id ? '<REPO>, ~, <HOST>' : `[${label}_N]`,
   }));
 }
 

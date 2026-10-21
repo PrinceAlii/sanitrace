@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// sanitrace CLI. Local only: reads a session log, writes a scrubbed report.
+// sanitrace CLI. Reads a session log and writes a redacted report.
 
 import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
@@ -7,7 +7,7 @@ import { parseArgs } from 'node:util';
 
 import { loadConfig, rules, sanitize } from '../src/index.js';
 
-const HELP = `sanitrace — turn an agent session log into a shareable, secret-free report
+const HELP = `sanitrace: turn an agent session log into a redacted Markdown report
 
 Usage
   sanitrace <session.jsonl> [options]      write a report to stdout
@@ -45,7 +45,7 @@ Config
     "ips": true, "reasoning": false, "outputs": true, "developer": false,
     "maxToolChars": 2000, "maxTotal": 120000, "keepPaths": [] }
 
-Nothing leaves your machine.
+No network access.
 `;
 
 const { values, positionals } = parseArgs({
@@ -157,6 +157,6 @@ async function readStdin() {
 
 function printRules() {
   const lines = ['id\tplaceholder\tdescription'];
-  for (const rule of rules()) lines.push(`${rule.id}\t[${rule.label}_N]\t${rule.description}`);
+  for (const rule of rules()) lines.push(`${rule.id}\t${rule.placeholder}\t${rule.description}`);
   process.stdout.write(`${lines.join('\n')}\n`);
 }

@@ -1,34 +1,51 @@
 # sanitrace
 
-Turn an agent session log into a compact, shareable, secret-free bug report.
+Turn an agent session log into a Markdown report that can be attached to a bug
+report or a review.
 
-Agent sessions are the new stack trace. When you report a bug against Codex,
-Claude Code or OpenCode, a maintainer asks for the log — and the log is a JSONL
-dump full of API keys, your home directory, internal hostnames and private repo
-names. So people paste a 4 MB blob, or nothing.
+## The problem
 
-`sanitrace` reads the log, replaces secrets and identifying paths with typed
-placeholders, drops boilerplate, and renders a reviewable Markdown report you can
-read before you attach it.
+Bug reports against coding agents often include a session log. Those logs are
+JSONL files that can contain API keys the agent echoed, home directory paths,
+internal hostnames, private repository names, and full tool output. An
+unredacted log can leak credentials; omitting the log slows triage.
+
+sanitrace reads the log, replaces detected credentials and local paths with
+placeholders, drops boilerplate, and writes a report that is smaller than the
+log and can be read before it is published.
+
+## What it does
+
+- Parses Codex rollouts, Claude Code transcripts, and plain text, and detects
+  the format.
+- Replaces detected credentials and addresses with numbered placeholders such
+  as `[OPENAI_KEY_1]`. Thirteen detectors, an entropy pass, and path mapping
+  cover the common cases.
+- Drops reasoning summaries and developer/system messages by default, and
+  truncates tool output to 2000 characters.
+- Budgets reports at 120,000 characters by scaling block text, then eliding
+  middle turns.
+- Runs every detector again over its own output and exits 3 if a match remains.
+- Runs locally, with no network access and no runtime dependencies.
 
 ```console
 $ sanitrace ~/.codex/sessions/2026/09/12/rollout-....jsonl -o report.md
-sanitrace: 11 redaction(s) across 9 rule(s)
+sanitrace: 13 redaction(s) across 10 rule(s)
 sanitrace: wrote report.md
 ```
 
 ```markdown
 | Working directory | `<REPO>` |
-| Tokens | 71,152 in / 3,396 out |
+| Turns | 2 (1 tool calls) |
 
 ## Redactions
 
 | Placeholder | Count |
 | --- | --- |
-| `<REPO>`, `~`, `<HOST>` | 7 |
+| `<REPO>`, `~`, `<HOST>` | 2 |
 | `[OPENAI_KEY_*]` | 1 |
 | `[GITHUB_TOKEN_*]` | 1 |
-| `[JWT_*]` | 1 |
+| `[PRIVATE_KEY_*]` | 1 |
 | `[EMAIL_*]` | 1 |
 
 ### 1. user
@@ -38,51 +55,42 @@ OPENAI_API_KEY=[OPENAI_KEY_1] is set and so is GITHUB_TOKEN=[GITHUB_TOKEN_1].
 Ping me at [EMAIL_1] if it needs my laptop, it is [IPV4_1].
 ```
 
-## Why
-
-- **Reviewable.** A report is ~10× smaller than the raw log and reads top to
-  bottom: metadata, what you were doing, what happened, then the turns.
-- **Local.** No network calls, no telemetry, no upload. Zero runtime
-  dependencies.
-- **Typed placeholders.** A leak is obvious in review: `[OPENAI_KEY_1]` did not
-  come from your log.
-- **Safe by default, verifiable.** After rendering, `sanitrace` runs every
-  detector a second time over its own output and exits `3` if anything still
-  matches (`--no-verify` to skip).
-- **Agent-agnostic.** Codex rollouts, Claude Code transcripts, or any plain text
-  log. Format is auto-detected.
-
 ## Install
 
 ```console
-$ npm install -g sanitrace      # or: npx sanitrace <log>
+$ npm install -g sanitrace
+$ sanitrace <session.jsonl>
 ```
 
-Node 20+. No dependencies.
+Without a global install:
+
+```console
+$ npx sanitrace <session.jsonl>
+```
+
+Node 20 or newer.
 
 ## Usage
 
 ```console
 $ sanitrace <session.jsonl>                 # report to stdout
 $ sanitrace <session.jsonl> -o report.md    # report to a file
-$ cat session.jsonl | sanitrace -           # stdin
+$ cat session.jsonl | sanitrace -           # read stdin
 $ sanitrace rules                           # list detectors
 $ sanitrace <session.jsonl> --check         # exit 1 if anything was redacted
 ```
 
-Useful flags: `--allow <value>` (never redact, repeatable), `--no-emails`,
-`--no-ips`, `--no-entropy`, `--no-outputs`, `--keep-reasoning`,
-`--keep-developer`, `--max-tool-chars <n>`, `--max-total <n>`, `--json`,
-`--format`.
+Flags: `--allow <value>` (never redact, repeatable), `--no-emails`, `--no-ips`,
+`--no-entropy`, `--no-outputs`, `--keep-reasoning`, `--keep-developer`,
+`--max-tool-chars <n>`, `--max-total <n>`, `--json`, `--format`.
 
-Default output drops reasoning summaries and developer/system boilerplate, and
-truncates tool output to 2000 characters. Reports are budgeted to 120k chars:
-block text is scaled down first, then middle turns are elided. Nothing is
-dropped silently — the report says what was trimmed.
+The verify pass runs by default. Pass `--no-verify` to skip the second
+detection pass.
 
-### Config
+## Configuration
 
-`.sanitrace.json` is read from the working directory upward:
+sanitrace reads `.sanitrace.json` from the working directory upward. CLI flags
+override the file. Unknown keys are an error.
 
 ```json
 {
@@ -95,66 +103,56 @@ dropped silently — the report says what was trimmed.
 }
 ```
 
-CLI flags win over config. Unknown keys are an error, not a silent typo.
-
-### In CI
+## Continuous integration
 
 ```yaml
 - run: npx sanitrace session.jsonl --check -o report.md
-  continue-on-error: true
 ```
 
-## What it redacts
+`--check` exits 1 when at least one redaction occurred. It writes the report
+before it exits.
 
-| Placeholder | Catches |
+## Detectors
+
+| Placeholder | Matches |
 | --- | --- |
 | `[PRIVATE_KEY_N]` | PEM private keys, including OpenSSH |
 | `[URL_CREDENTIALS_N]` | `https://user:pass@host` |
-| `[CONNECTION_STRING_N]` | `postgres://`, `mongodb://`, `redis://`, `amqp://`, … |
-| `[ANTHROPIC_KEY_N]`, `[OPENAI_KEY_N]` | `sk-ant-…`, `sk-…` |
-| `[GITHUB_TOKEN_N]` | `ghp_…`, `gho_…`, `github_pat_…` |
-| `[CLOUD_KEY_N]` | AWS, Google, Slack tokens |
-| `[PAYMENT_KEY_N]` | Stripe live/test keys |
+| `[CONNECTION_STRING_N]` | `postgres://`, `mongodb://`, `redis://`, `amqp://` |
+| `[ANTHROPIC_KEY_N]`, `[OPENAI_KEY_N]` | `sk-ant-...`, `sk-...` |
+| `[GITHUB_TOKEN_N]` | `ghp_...`, `gho_...`, `github_pat_...` |
+| `[CLOUD_KEY_N]` | AWS, Google, and Slack tokens |
+| `[PAYMENT_KEY_N]` | Stripe live and test keys |
 | `[JWT_N]` | JSON Web Tokens |
-| `[ENV_VALUE_N]` | values assigned to `*_KEY`, `*_TOKEN`, `*_SECRET`, … (name kept) |
+| `[BEARER_TOKEN_N]` | `Authorization: Bearer ...` and `Basic ...` values |
+| `[ENV_VALUE_N]` | values assigned to `*_KEY`, `*_TOKEN`, `*_SECRET`; the name is kept |
 | `[EMAIL_N]`, `[IPV4_N]` | addresses |
-| `[HIGH_ENTROPY_N]` | random-looking strings, off-list secrets |
+| `[HIGH_ENTROPY_N]` | random-looking strings without a matching rule |
 | `<REPO>`, `~`, `<HOST>` | working directory, home directory, hostname |
 
-UUIDs, commit SHAs and file names are deliberately kept: they are how you read
-the report.
+UUIDs, commit SHAs, and file names are kept because they identify the trace.
 
-## Residual risk
+## Limits
 
-`sanitrace` is a net, not a proof. It will miss proprietary names, customer data
-in tool output, and credentials in formats nobody has added yet. `--verify`
-catches only what a detector knows about. Read the report before you publish it;
-if you get burned, add a rule to `src/redact.js` and a fixture to `test/`.
+Detection covers known formats. A report can still contain proprietary names,
+customer data in tool output, and credentials that no rule matches. The verify
+pass re-runs only the rules that exist, so read the report before publishing it.
 
-The high-entropy pass can also over-redact legitimate identifiers. `--no-entropy`
-turns it off.
+The entropy pass can replace identifiers that are not secrets. Use
+`--no-entropy` to disable it. Add a rule and a fixture when a credential format
+is missing; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Development
 
 ```console
-$ npm test        # node:test, 35 tests
+$ npm test        # node:test suite
+$ npm run lint    # syntax check
 $ npm run demo    # render the fixture
 ```
 
-Layout: `src/parse.js` (session formats), `src/redact.js` (detectors),
-`src/render.js` (Markdown), `src/index.js` (pipeline), `bin/sanitrace.js` (CLI).
-Adding a detector is one object in `RULES` plus one test case; a fixture with
-fake credentials is worth more than a paragraph of prose.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the bar on new rules.
-
-## Roadmap
-
-- GitHub Action that attaches a report to bug issues
-- Codex `AGENTS.md`/skill snippet so agents produce reports themselves
-- Reversible `--mapping` export, encrypted when it contains values
-- More formats: OpenCode, Cursor, Gemini CLI
-- Fuzz tests over the redactor, and a corpus of real-world credential shapes
+`src/parse.js` reads session formats, `src/redact.js` holds the detectors,
+`src/render.js` writes Markdown, `src/index.js` runs the pipeline, and
+`bin/sanitrace.js` is the CLI. Fixtures with fake credentials live in `test/`.
 
 ## License
 

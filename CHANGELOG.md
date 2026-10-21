@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+- Rewrite the README, CONTRIBUTING, and SECURITY files to the repository writing
+  standard.
+- Add `AGENTS.md` with the writing and review rules.
+- Align the package description and CLI help with the README.
+
 ## 0.1.0
 
 First release.

@@ -1,8 +1,8 @@
 // Session-log parsers.
 //
-// Every parser is lenient on purpose: session formats are internal to each agent
-// and change between releases. Unknown records are counted and skipped rather
-// than throwing, because a report that drops one record is better than no report.
+// Parsers are lenient: session formats are internal to each agent and change
+// between releases. Unknown records are counted and skipped instead of raising,
+// because a report that drops one record is better than no report.
 
 const MAX_BLOCK_CHARS = 6000;
 const MAX_TOOL_CHARS = 2000;
