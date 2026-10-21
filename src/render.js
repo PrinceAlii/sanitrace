@@ -6,7 +6,7 @@
 
 import { createHash } from 'node:crypto';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
 export const REDACTIONS_MARKER = '<!-- sanitrace:redactions -->';
 export const TURN_END_MARKER = '<!-- sanitrace:turn:end -->';
 
