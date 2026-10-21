@@ -16,7 +16,7 @@ export { loadCustomRules } from './custom-rules.js';
 /**
  * @typedef {object} SanitizeOptions
  * @property {'bug'|'security'|'review'} [profile] report layout (default bug)
- * @property {'auto'|'codex'|'claude'|'text'} [format]
+ * @property {'auto'|'codex'|'claude'|'opencode'|'gemini'|'text'} [format]
  * @property {string[]} [allow] values to leave untouched
  * @property {string[]} [disable] rule ids to skip
  * @property {boolean} [entropy]

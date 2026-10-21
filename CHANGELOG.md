@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add OpenCode 2.1.1 export and Gemini CLI transcript parsers with automatic
+  detection and plain-text fallback.
+
 ## 0.2.0
 
 - Add `bug`, `security`, and `review` report profiles, selected with `--profile`

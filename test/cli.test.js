@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 const bin = fileURLToPath(new URL('../bin/sanitrace.js', import.meta.url));
 const fixture = fileURLToPath(new URL('./fixtures/codex-rollout.jsonl', import.meta.url));
+const openCodeFixture = fileURLToPath(new URL('./fixtures/opencode-session.json', import.meta.url));
+const geminiFixture = fileURLToPath(new URL('./fixtures/gemini-session.jsonl', import.meta.url));
 const customDirectory = fileURLToPath(new URL('./fixtures/custom-rules/', import.meta.url));
 const customConfig = path.join(customDirectory, '.sanitrace.json');
 const customLog = path.join(customDirectory, 'session.txt');
@@ -64,6 +66,38 @@ test('--check exits 0 on a clean document', async () => {
   await writeFile(clean, 'nothing sensitive in this sentence at all');
   const { code } = await cli([clean, '--check', '--format', 'text']);
   assert.equal(code, 0);
+});
+
+test('detects and sanitizes OpenCode and Gemini exports', async () => {
+  for (const [file, format] of [
+    [openCodeFixture, 'opencode'],
+    [geminiFixture, 'gemini'],
+  ]) {
+    const { code, stdout } = await cli([file, '--json']);
+    assert.equal(code, 0);
+    const payload = JSON.parse(stdout);
+    assert.deepEqual(payload.residual, []);
+    assert.ok(payload.markdown.includes(`| Format | \`${format}\` |`));
+    assert.ok(!payload.markdown.includes('/Users/example/project'));
+  }
+});
+
+test('--check exits 1 for a new session format', async () => {
+  for (const file of [openCodeFixture, geminiFixture]) {
+    const { code } = await cli([file, '--check']);
+    assert.equal(code, 1);
+  }
+});
+
+test('rejects an unknown format before reading input', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'sanitrace-'));
+  const missing = path.join(directory, 'missing.jsonl');
+  const { code, stderr } = await cli([missing, '--format', 'yaml']);
+
+  assert.equal(code, 2);
+  assert.match(stderr, /Unknown format "yaml"/);
+  assert.match(stderr, /opencode, gemini/);
+  assert.ok(!stderr.includes('ENOENT'));
 });
 
 test('writes to a file with --out and supports --json', async () => {

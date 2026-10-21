@@ -7,12 +7,16 @@
 const MAX_BLOCK_CHARS = 6000;
 const MAX_TOOL_CHARS = 2000;
 
-/** @typedef {{kind: 'text'|'tool'|'output'|'reasoning', role?: string, name?: string, text: string, originalChars: number}} Block */
+/** @typedef {'codex'|'claude'|'opencode'|'gemini'|'text'} Format */
+/** @typedef {{kind: 'text'|'tool'|'output'|'reasoning', role?: string, name?: string, callId?: string, text: string, originalChars: number}} Block */
 /** @typedef {{role: string, blocks: Block[]}} Turn */
+
+const GEMINI_ASSISTANT_TYPES = new Set(['gemini', 'assistant', 'ai', 'model']);
+const SHELL_TOOL_NAMES = new Set(['bash', 'exec', 'exec_command', 'run_command', 'run_shell_command', 'shell']);
 
 /**
  * @param {string} text
- * @returns {'codex'|'claude'|'text'}
+ * @returns {Format}
  */
 export function detectFormat(text) {
   const head = text.slice(0, 20000);
@@ -20,12 +24,68 @@ export function detectFormat(text) {
     return 'codex';
   }
   if (/"sessionId"\s*:/.test(head) && /"message"\s*:\s*\{/.test(head)) return 'claude';
+  if (isOpenCodeExport(text)) return 'opencode';
+  if (isGeminiTranscript(text)) return 'gemini';
   return 'text';
+}
+
+// OpenCode detection requires the export envelope plus a typed message or part.
+// One key is not enough, so unrelated JSON stays text.
+function isOpenCodeExport(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{')) return false;
+
+  let document;
+  try {
+    document = JSON.parse(trimmed);
+  } catch {
+    return false;
+  }
+
+  if (!isRecord(document) || !isRecord(document.info) || !Array.isArray(document.messages)) {
+    return false;
+  }
+
+  return document.messages.some((message) => {
+    if (!isRecord(message)) return false;
+    if (typeof message.type === 'string') return true;
+    return (
+      Array.isArray(message.content) &&
+      message.content.some((part) => isRecord(part) && typeof part.type === 'string')
+    );
+  });
+}
+
+// Gemini detection requires the session header plus a known event or tool call.
+function isGeminiTranscript(text) {
+  let hasHeader = false;
+  let hasEvent = false;
+
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isRecord(record)) continue;
+
+    if (typeof record.sessionId === 'string' && typeof record.projectHash === 'string') {
+      hasHeader = true;
+    }
+    if (geminiRole(record.type) || Array.isArray(record.toolCalls)) {
+      hasEvent = true;
+    }
+    if (hasHeader && hasEvent) return true;
+  }
+
+  return false;
 }
 
 /**
  * @param {string} text
- * @param {{format?: string, maxToolChars?: number}} [options]
+ * @param {{format?: Format|'auto', maxBlockChars?: number, maxToolChars?: number}} [options]
  */
 export function parse(text, options = {}) {
   const format = options.format && options.format !== 'auto'
@@ -38,13 +98,23 @@ export function parse(text, options = {}) {
 
   if (format === 'codex') return parseCodex(text, limits);
   if (format === 'claude') return parseClaude(text, limits);
+  if (format === 'opencode') return parseOpenCode(text, limits);
+  if (format === 'gemini') return parseGemini(text, limits);
   return parseText(text, limits);
 }
 
 function emptyResult(format) {
   return {
     format,
-    meta: { cwd: null, model: null, cliVersion: null, startedAt: null, endedAt: null, source: null },
+    meta: {
+      cwd: null,
+      model: null,
+      cliVersion: null,
+      startedAt: null,
+      endedAt: null,
+      source: null,
+      sessionId: null,
+    },
     turns: [],
     usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
     skipped: 0,
@@ -59,6 +129,100 @@ function clip(value, limit) {
     text: `${text.slice(0, limit)}\n… truncated ${text.length - limit} of ${text.length} chars`,
     originalChars: text.length,
   };
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function toIsoTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const time = typeof value === 'number' ? value : Date.parse(value);
+  if (!Number.isFinite(time)) return null;
+  const date = new Date(time);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function latestIso(current, candidate) {
+  const next = toIsoTimestamp(candidate);
+  if (!next) return current;
+  if (!current) return next;
+  return Date.parse(next) >= Date.parse(current) ? next : current;
+}
+
+function numberOrZero(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function stringOrNull(value) {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function openCodeToolInput(name, input) {
+  if (typeof input === 'string') return input;
+  if (input === undefined || input === null) return '';
+  if (
+    isRecord(input) &&
+    typeof input.command === 'string' &&
+    SHELL_TOOL_NAMES.has(String(name).toLowerCase())
+  ) {
+    return input.command;
+  }
+  return JSON.stringify(input);
+}
+
+function geminiRole(type) {
+  if (type === 'user' || type === 'human') return 'user';
+  if (GEMINI_ASSISTANT_TYPES.has(type)) return 'assistant';
+  return null;
+}
+
+function geminiContentText(content) {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .map((part) => {
+      if (typeof part === 'string') return part;
+      if (!isRecord(part) || typeof part.text !== 'string') return '';
+      if (
+        part.type !== undefined &&
+        part.type !== 'text' &&
+        part.type !== 'input_text' &&
+        part.type !== 'output_text'
+      ) {
+        return '';
+      }
+      return part.text;
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function geminiToolInput(name, args) {
+  if (typeof args === 'string') return args;
+  if (
+    isRecord(args) &&
+    typeof args.command === 'string' &&
+    SHELL_TOOL_NAMES.has(String(name).toLowerCase())
+  ) {
+    return args.command;
+  }
+  return JSON.stringify(args ?? {});
+}
+
+function geminiToolOutput(call) {
+  if (!Array.isArray(call.result)) return '';
+  return call.result
+    .map((entry) => {
+      if (typeof entry === 'string') return entry;
+      if (!isRecord(entry)) return '';
+      const response = entry.functionResponse?.response;
+      if (typeof response?.output === 'string') return response.output;
+      if (typeof entry.output === 'string') return entry.output;
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function messageText(content) {
@@ -272,6 +436,186 @@ function parseClaude(text, limits) {
   };
 
   result.turns = turns;
+  return result;
+}
+
+function parseOpenCode(text, limits) {
+  const result = emptyResult('opencode');
+  if (!text.trim()) return result;
+
+  let document;
+  try {
+    document = JSON.parse(text.trim());
+  } catch {
+    result.skipped = 1;
+    return result;
+  }
+
+  if (!isRecord(document) || !isRecord(document.info) || !Array.isArray(document.messages)) {
+    result.skipped = 1;
+    return result;
+  }
+
+  const info = document.info;
+  const time = isRecord(info.time) ? info.time : {};
+  const tokens = isRecord(info.tokens) ? info.tokens : {};
+  const cache = isRecord(tokens.cache) ? tokens.cache : {};
+
+  result.meta.cwd = stringOrNull(info.location?.directory);
+  result.meta.model = stringOrNull(info.model?.id);
+  result.meta.sessionId = stringOrNull(info.id);
+  result.meta.startedAt = toIsoTimestamp(time.created);
+  result.meta.endedAt = toIsoTimestamp(time.updated);
+  result.meta.source = 'OpenCode';
+  result.meta.cliVersion = stringOrNull(info.version ?? info.cliVersion ?? document.version);
+  result.usage = {
+    inputTokens: numberOrZero(tokens.input),
+    outputTokens: numberOrZero(tokens.output),
+    cachedTokens: numberOrZero(cache.read),
+  };
+
+  for (const message of document.messages) {
+    if (!isRecord(message)) {
+      result.skipped += 1;
+      continue;
+    }
+
+    if (message.type === 'user') {
+      const body = messageText(message.text) || messageText(message.content);
+      if (!body.trim()) continue;
+      result.turns.push({
+        role: 'user',
+        blocks: [{ kind: 'text', ...clip(body, limits.maxBlockChars) }],
+      });
+      continue;
+    }
+
+    if (message.type === 'assistant') {
+      const blocks = [];
+      const parts = Array.isArray(message.content) ? message.content : [];
+
+      for (const part of parts) {
+        if (!isRecord(part)) continue;
+
+        if (part.type === 'text') {
+          const body = messageText(part.text);
+          if (body.trim()) blocks.push({ kind: 'text', ...clip(body, limits.maxBlockChars) });
+        } else if (part.type === 'reasoning') {
+          const body = messageText(part.text);
+          if (body.trim()) blocks.push({ kind: 'reasoning', ...clip(body, limits.maxBlockChars) });
+        } else if (part.type === 'tool') {
+          result.toolCalls += 1;
+          blocks.push({
+            kind: 'tool',
+            name: typeof part.name === 'string' ? part.name : 'tool',
+            callId: part.id,
+            ...clip(openCodeToolInput(part.name, part.state?.input), limits.maxToolChars),
+          });
+
+          const output =
+            messageText(part.state?.content) ||
+            (typeof part.state?.error === 'string' ? part.state.error : '');
+          if (output.trim()) {
+            blocks.push({ kind: 'output', ...clip(output, limits.maxToolChars) });
+          }
+        }
+      }
+
+      if (blocks.length > 0) result.turns.push({ role: 'assistant', blocks });
+      continue;
+    }
+
+    result.skipped += 1;
+  }
+
+  return result;
+}
+
+function parseGemini(text, limits) {
+  const result = emptyResult('gemini');
+  result.meta.source = 'Gemini CLI';
+
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      result.skipped += 1;
+      continue;
+    }
+
+    if (!isRecord(record)) {
+      result.skipped += 1;
+      continue;
+    }
+
+    // Patch records update client metadata and carry no transcript content.
+    if (Object.hasOwn(record, '$set')) continue;
+
+    if (!record.type && typeof record.sessionId === 'string') {
+      result.meta.sessionId = record.sessionId;
+      result.meta.cwd =
+        Array.isArray(record.directories) && typeof record.directories[0] === 'string'
+          ? record.directories[0]
+          : result.meta.cwd;
+      result.meta.startedAt = toIsoTimestamp(record.startTime) ?? result.meta.startedAt;
+      result.meta.endedAt =
+        toIsoTimestamp(record.lastUpdated) ?? result.meta.endedAt;
+      result.meta.cliVersion =
+        stringOrNull(record.version ?? record.cliVersion) ?? result.meta.cliVersion;
+      continue;
+    }
+
+    const role = geminiRole(record.type);
+    if (!role) {
+      result.skipped += 1;
+      continue;
+    }
+
+    if (!result.meta.startedAt) result.meta.startedAt = toIsoTimestamp(record.timestamp);
+    result.meta.endedAt = latestIso(result.meta.endedAt, record.timestamp);
+    if (typeof record.model === 'string' && record.model) result.meta.model = record.model;
+
+    if (isRecord(record.tokens)) {
+      result.usage.inputTokens += numberOrZero(record.tokens.input);
+      result.usage.outputTokens += numberOrZero(record.tokens.output);
+      result.usage.cachedTokens += numberOrZero(record.tokens.cached);
+    }
+
+    const blocks = [];
+
+    for (const thought of Array.isArray(record.thoughts) ? record.thoughts : []) {
+      let body = '';
+      if (typeof thought === 'string') {
+        body = thought;
+      } else if (isRecord(thought) && typeof thought.description === 'string') {
+        body = thought.description;
+      }
+      if (body.trim()) blocks.push({ kind: 'reasoning', ...clip(body, limits.maxBlockChars) });
+    }
+
+    const body = geminiContentText(record.content);
+    if (body.trim()) blocks.push({ kind: 'text', ...clip(body, limits.maxBlockChars) });
+
+    for (const call of Array.isArray(record.toolCalls) ? record.toolCalls : []) {
+      if (!isRecord(call)) continue;
+      result.toolCalls += 1;
+      blocks.push({
+        kind: 'tool',
+        name: typeof call.name === 'string' ? call.name : 'tool',
+        callId: call.id,
+        ...clip(geminiToolInput(call.name, call.args), limits.maxToolChars),
+      });
+
+      const output = geminiToolOutput(call);
+      if (output.trim()) blocks.push({ kind: 'output', ...clip(output, limits.maxToolChars) });
+    }
+
+    if (blocks.length > 0) result.turns.push({ role, blocks });
+  }
+
   return result;
 }
 

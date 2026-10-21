@@ -1,0 +1,112 @@
+{
+  "info": {
+    "id": "ses_7f3a2b1c4d5e6f708192a3b4c5",
+    "model": {
+      "id": "example-model-1",
+      "providerID": "example",
+      "variant": "default"
+    },
+    "tokens": {
+      "input": 12034,
+      "output": 842,
+      "reasoning": 316,
+      "cache": {
+        "read": 512,
+        "write": 0
+      }
+    },
+    "time": {
+      "created": 1792569600000,
+      "updated": 1792569632000
+    },
+    "title": "Fix staging deploy preflight",
+    "location": {
+      "directory": "/Users/example/project"
+    }
+  },
+  "messages": [
+    {
+      "id": "msg_00000000000000000000000001",
+      "time": {
+        "created": 1792569600500
+      },
+      "text": "You asked me to check the deploy preflight in /Users/example/project. It fails on the staging host. The environment file has OPENAI_API_KEY=sk-proj-Example9Fake2Key7Value4For1Tests6Only and GITHUB_TOKEN=ghp_ExampleFakeToken1234567890ABCDEFGHIJ. The alert goes to ops-team@example.com and the host is 10.20.30.40. Find out why the preflight rejects it.",
+      "type": "user"
+    },
+    {
+      "id": "msg_00000000000000000000000002",
+      "time": {
+        "created": 1792569601100,
+        "streamed": 1792569604800,
+        "completed": 1792569605000
+      },
+      "type": "assistant",
+      "agent": "build",
+      "model": {
+        "id": "example-model-1",
+        "providerID": "example",
+        "variant": "default"
+      },
+      "content": [
+        {
+          "type": "reasoning",
+          "text": "The preflight script compares the local environment with the values injected by the deploy job. I should read the script and print the environment before I change anything. The host 10.20.30.40 may be missing from the allowlist.",
+          "time": {
+            "created": 1792569601300,
+            "completed": 1792569604600
+          }
+        },
+        {
+          "type": "text",
+          "text": "`scripts/preflight.js` rejects any host outside the deploy allowlist. `10.20.30.40` is absent from `config/hosts.json`, so the job stops before it copies the bundle. Add the host to the allowlist, then rerun `npm run preflight`."
+        },
+        {
+          "type": "tool",
+          "id": "call_preflight_01",
+          "name": "shell",
+          "executed": false,
+          "state": {
+            "status": "completed",
+            "input": {
+              "command": "sed -n '1,24p' .env && npm run preflight"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "$ sed -n '1,24p' .env\nNODE_ENV=production\nOPENAI_API_KEY=sk-proj-Example9Fake2Key7Value4For1Tests6Only\nGITHUB_TOKEN=ghp_ExampleFakeToken1234567890ABCDEFGHIJ\nAWS_ACCESS_KEY_ID=AKIAEXAMPLEFAKE12345\nAWS_REGION=us-east-1\nDEPLOY_HOST=10.20.30.40\nDEPLOY_USER=deploy-bot\nALERT_EMAIL=ops-team@example.com\nLOG_LEVEL=info\nRETRY_LIMIT=3\nTIMEOUT_MS=45000\n\n$ npm run preflight\n\n> project@1.4.0 preflight\n> node scripts/preflight.js\n\n[08:00:04] preflight start\n[08:00:04] cwd /Users/example/project\n[08:00:04] reading config/hosts.json\n[08:00:04] allowed hosts: staging-1.internal.example, staging-2.internal.example\n[08:00:04] target host 10.20.30.40\n[08:00:04] checking ssh reachability\n[08:00:04] ssh handshake ok\n[08:00:04] checking bundle manifest\n[08:00:05] 28 artifacts queued for verification\n[08:00:05] artifact 001 sha256=0c4def370440ec924e4e907156290f050967a623a9e0acf45cad65ca9f88818d size=18137 status=ok\n[08:00:05] artifact 002 sha256=4018d96d0f04b87d4dd71f084559df5263ab9894e99d284916bc93d676a4cdc4 size=18274 status=ok\n[08:00:05] artifact 003 sha256=276b44c196b7dc5960f695ec3ffd8d686d48f570ba15f40c9cc3f5e889a4d2be size=18411 status=ok\n[08:00:05] artifact 004 sha256=07cde72a006fc2bd4947afe603e19f39afa81da3271e65cf7a5bcb9d753f52d4 size=18548 status=ok\n[08:00:05] artifact 005 sha256=b02dd659666b22a77ddc8479e94c307acb9468ad5bc3b2c642a15e6f1b912e4a size=18685 status=ok\n[08:00:05] artifact 006 sha256=7ef2f142e949d0140e6b955123050e7ab5df7403b41917159c1093c7095725e5 size=18822 status=ok\n[08:00:05] artifact 007 sha256=96bdd5ef35f998aff3985d3684b7eaabdc96c49911c49a0a6511faf1ce66cd30 size=18959 status=ok\n[08:00:05] artifact 008 sha256=e406e95fdd3874ebdca0df152984fcd68d457e7d6863329754c33bbd2688bfec size=19096 status=ok\n[08:00:05] artifact 009 sha256=6ce57553edb6b911fa98b4377319d86f89b158a4852686bfab4f2aec9a5924c7 size=19233 status=ok\n[08:00:05] artifact 010 sha256=166cbb18c1ddade2804bb6102b32631c541bdf5c0f90efb3d299b81156609f5c size=19370 status=ok\n[08:00:05] artifact 011 sha256=e2e34039526291a3204693cd60323649c1c53fbe1c1020a2e1d8e441c2da42d1 size=19507 status=ok\n[08:00:05] artifact 012 sha256=62fb11f9f514d60a3aa803586966272d4bcfb9a36da1833cef5b73e6d1062969 size=19644 status=ok\n[08:00:05] artifact 013 sha256=f1058be04428e8799362c811ef63b5f99bbb2c70e837f4ed77e2a48378c5c8df size=19781 status=ok\n[08:00:05] artifact 014 sha256=3177858efe23588915db4fc58f3ad6ebeda0b6d87b615ddbc08419d014ab9628 size=19918 status=ok\n[08:00:05] artifact 015 sha256=c4ab6d784d0de8779034e6887bd7a906ac16feafec59ac2cd51973485a022a9a size=20055 status=ok\n[08:00:05] artifact 016 sha256=56a99829c67409e24ad27a1c1a2d8b91097a6c0df4c553b5d1b2c846ea20448d size=20192 status=ok\n[08:00:05] artifact 017 sha256=9b05332c8e52f61375e59bcdb883377ec30166bc7562b946f1d2c87228a54f01 size=20329 status=ok\n[08:00:05] artifact 018 sha256=b2dccf58fe3b05e337f339130d64177c8a4363964df8302a9da5a15bec306a19 size=20466 status=ok\n[08:00:05] artifact 019 sha256=a463d855ccb365ff12ec7818304ae147d3864e38a15f1d29203e6643df8ea921 size=20603 status=ok\n[08:00:05] artifact 020 sha256=b2a72eac3666b18f5b6929fd36234eb4c5dbd9110ce02ddea1579d681d4e431a size=20740 status=ok\n[08:00:05] artifact 021 sha256=cbba0ce5a0119a979a0784c13a90b5c3097a4bc5298bb9430dabf521221bcd51 size=20877 status=ok\n[08:00:05] artifact 022 sha256=97e9d898099ccb3a84b79cd855ac9bc0882829b1c2675f2e1e441e15c0df9d1a size=21014 status=ok\n[08:00:05] artifact 023 sha256=8974dca2517b66726546998a172c9567c1e192da026f2df8a47d57f6590d5832 size=21151 status=ok\n[08:00:05] artifact 024 sha256=195ce3cf56ad740da21440519f07c67df1bb22e286926a3d21ebd3b2ace9ec7a size=21288 status=ok\n[08:00:05] artifact 025 sha256=99f6151712d37b2bd8e8776aea8197b4b6c9febbce1c8fd399b9d54bb3e42070 size=21425 status=ok\n[08:00:05] artifact 026 sha256=2d8c79b728e2cc0b487d6bff5156244c7c60ed0f269166da7f22e8ff99b3a573 size=21562 status=ok\n[08:00:05] artifact 027 sha256=364fe26b301ce542fcec49fb9b011a189d4308e933c569dc85edec8061ea15f0 size=21699 status=ok\n[08:00:05] artifact 028 sha256=13476ac102be35c0c229f00d80514e542389ca5b0a0c9ccb51eaa00eb1148e3c size=21836 status=ok\n[08:00:06] checking allowlist\n[08:00:06] FAIL host 10.20.30.40 is not listed in config/hosts.json\n[08:00:06] preflight stopped before bundle copy\n[08:00:06] preflight failed with 1 error"
+              }
+            ],
+            "metadata": {
+              "status": "completed",
+              "truncated": false,
+              "exit": 1
+            }
+          },
+          "time": {
+            "created": 1792569605200,
+            "ran": 1792569606100,
+            "completed": 1792569606300
+          }
+        }
+      ]
+    },
+    {
+      "type": "compaction",
+      "id": "msg_00000000000000000000000003",
+      "metadata": {
+        "keepID": "msg_00000000000000000000000001"
+      },
+      "time": {
+        "created": 1792569630000
+      },
+      "status": "completed",
+      "reason": "auto",
+      "model": {
+        "id": "example-model-1",
+        "providerID": "example",
+        "variant": "default"
+      },
+      "summary": "Deploy preflight failed on host 10.20.30.40. The allowlist check ran before the bundle copy and stopped the job."
+    }
+  ]
+}

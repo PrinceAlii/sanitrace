@@ -1,6 +1,6 @@
 # 0004: Session formats
 
-Status: Accepted
+Status: Implemented
 Target: 0.3.0
 Depends on: none
 
@@ -15,8 +15,8 @@ OpenCode, Gemini CLI, and Cursor users get that fallback today.
 
 ## Goals
 
-- Add parsers for OpenCode and Gemini CLI, and for Cursor when a stable JSON
-  export exists.
+- Add parsers for OpenCode and Gemini CLI.
+- Reject Cursor because it has no stable JSON export.
 - Detect each format from at least two structural signals.
 - Keep the parser contract: `{ format, meta, turns, usage, skipped, toolCalls }`.
 - Skip unknown records and count them instead of throwing.
@@ -36,8 +36,11 @@ OpenCode, Gemini CLI, and Cursor users get that fallback today.
 
 ### Format ids
 
-`--format` accepts `opencode`, `gemini`, and `cursor` in addition to `auto`,
-`codex`, `claude`, and `text`. The report metadata shows the id.
+`--format` accepts `opencode` and `gemini` in addition to `auto`, `codex`,
+`claude`, and `text`. The report metadata shows the id.
+
+Cursor is rejected. Its chat data is stored in `state.vscdb` SQLite files, and
+reading SQLite is a non-goal.
 
 ### Detection
 
@@ -45,16 +48,12 @@ OpenCode, Gemini CLI, and Cursor users get that fallback today.
 new formats, then falls back to `text`.
 
 A new format needs at least two independent structural signals. A single key
-such as `"messages"` or `"role"` is not enough. Candidate signals below are
-starting points. Confirm them against the captured export before implementation:
+such as `"messages"` or `"role"` is not enough. The confirmed formats are:
 
-- **OpenCode:** a session envelope with a session identifier, a message array,
-  and message parts that carry a type. Require the envelope plus at least one
-  part or message field.
-- **Gemini CLI:** a transcript envelope with a session identifier and a
-  `messages` array whose entries have a type and content field. Require both.
-- **Cursor:** an exported chat document with a conversation or bubble array and
-  a bubble type field. Require the export key plus the bubble field.
+- **OpenCode:** a JSON export with an `info` object, a `messages` array, and a
+  typed message or content part. Require the envelope plus the type signal.
+- **Gemini CLI:** a JSONL transcript with a `sessionId` and `projectHash`
+  header and a `gemini` event or a `toolCalls` array. Require both.
 
 Detection tests:
 
@@ -122,16 +121,13 @@ result with `skipped: 1`; it does not throw.
 
 ### Fixtures
 
-Add one fixture per format:
+Add one fixture per supported format:
 
-- `test/fixtures/opencode-session.jsonl`
+- `test/fixtures/opencode-session.json`
 - `test/fixtures/gemini-session.jsonl`
-- `test/fixtures/cursor-export.json`
 
-Use the extension of the captured export. The names above are examples; a JSON
-document uses `.json`.
-
-Each fixture is under 50 KB and contains:
+Use the extension of the captured export. Each fixture is under 50 KB and
+contains:
 
 - fake credentials that match at least three detectors
 - one multiline tool output longer than 2,000 characters
@@ -207,21 +203,20 @@ End-to-end tests:
 
 ## Rollout
 
-Release 0.3.0. Ship one parser per pull request in this order: OpenCode, Gemini
-CLI, Cursor. R7 in the roadmap stays conditional: if Cursor has no stable JSON
-export, mark it rejected and remove it from the release instead of reading
-SQLite.
+Release 0.3.0. The OpenCode parser uses the 2.1.1 export command
+`opencode session export <sessionID>`. The Gemini CLI parser uses the JSONL
+files under `~/.gemini/tmp/<project>/chats/`. Cursor is rejected and removed
+from the release instead of reading SQLite.
 
 Update the README format table, the `--format` help text, and the CHANGELOG.
 Add a short `CONTRIBUTING.md` section for adding a parser and a fixture.
 
 ## Open decisions
 
-- Confirm the OpenCode release and export command before implementation. The
-  fixture records both.
-- Confirm the Gemini CLI transcript format across releases. If it changes,
-  record a version check in the parser and fall back to `text` on a mismatch.
-- Confirm that Cursor provides a documented export. If it does not, drop Cursor
-  from 0.3.0.
-- A shared normalization helper is deferred until the second parser repeats the
-  same normalization code.
+- OpenCode 2.1.1 and its export command are confirmed. The fixture records both.
+- The Gemini CLI transcript does not record a client version. The parser reads
+  the fields that are present and counts unknown records instead of failing.
+- Cursor has no documented JSON export. It provides only SQLite storage, so it
+  is rejected.
+- A shared normalization helper is deferred until the two parsers repeat the
+  same normalization code. The current parsers share small helpers only.

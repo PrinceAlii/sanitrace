@@ -16,8 +16,8 @@ log and can be read before it is published.
 
 ## What it does
 
-- Parses Codex rollouts, Claude Code transcripts, and plain text, and detects
-  the format.
+- Parses Codex rollouts, Claude Code transcripts, OpenCode exports, Gemini CLI
+  transcripts, and plain text, and detects the format.
 - Replaces detected credentials and addresses with numbered placeholders such
   as `[OPENAI_KEY_1]`. Thirteen built-in detectors, an entropy pass, and path
   mapping cover the common cases. Custom rules add formats from the config or a
@@ -95,6 +95,26 @@ Flags: `--profile <name>`, `--mapping <file>`,
 
 The verify pass runs by default. Pass `--no-verify` to skip the second
 detection pass.
+
+## Session formats
+
+sanitrace detects the input format from the file structure. `--format <name>`
+overrides detection when a file is ambiguous.
+
+| Format | Input |
+| --- | --- |
+| `codex` | Codex rollout JSONL |
+| `claude` | Claude Code transcript JSONL |
+| `opencode` | JSON from `opencode session export <sessionID>` |
+| `gemini` | Gemini CLI JSONL under `~/.gemini/tmp/<project>/chats/` |
+| `text` | Any other input |
+
+Codex and Claude are checked first. OpenCode checks the `info` envelope and the
+typed messages. Gemini checks the `sessionId` and `projectHash` header and a
+Gemini event or `toolCalls` array.
+
+Cursor is not supported. Cursor stores chats in a SQLite database, and
+sanitrace does not read SQLite.
 
 ## Profiles
 

@@ -29,8 +29,16 @@ catastrophically, and never match a placeholder such as `[OPENAI_KEY_1]` twice.
 ## Add a session format
 
 Add a parser to `src/parse.js`, extend `detectFormat`, and add a branch in
-`parse`. Parsers are lenient: skip unknown records, count them in `skipped`,
-and do not throw. Add a fixture and a test that asserts the parsed shape.
+`parse`. Detection needs at least two structural signals, and a single common
+key such as `messages` is not enough. Parsers are lenient: skip unknown records,
+count them in `skipped`, and do not throw.
+
+Add a synthetic fixture under 50 KB in `test/fixtures/`. It needs fake
+credentials that match several detectors, a tool result longer than 2,000
+characters, an unknown record, and a malformed record when the format is JSONL.
+Record the client name, version, capture date, export command or directory, and
+the fields you replaced in `test/fixtures/README.md`. Do not commit a real
+session. Add tests for detection, the parsed shape, and a clean `sanitize` run.
 
 ## Pull requests
 

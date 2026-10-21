@@ -11,6 +11,8 @@ import { decryptMapping, encryptMapping, reportDigest } from '../src/mapping.js'
 
 const DEFAULT_PASSPHRASE_ENV = 'SANITRACE_MAPPING_PASSPHRASE';
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/;
+const FORMAT_NAMES = ['auto', 'codex', 'claude', 'opencode', 'gemini', 'text'];
+const FORMATS = new Set(FORMAT_NAMES);
 const MAPPING_WARNING = 'sanitrace: mapping contains original secrets; avoid logging stdout.';
 
 const HELP = `sanitrace: turn an agent session log into a redacted Markdown report
@@ -24,7 +26,7 @@ Usage
 
 Options
   -o, --out <file>        write the report to a file instead of stdout
-      --format <name>     auto (default), codex, claude, text
+      --format <name>     auto (default), codex, claude, opencode, gemini, text
       --profile <name>    report profile: bug (default), security, review
       --config <file>     use a specific .sanitrace.json
       --rule-module <path> load a rule module (repeatable)
@@ -142,6 +144,11 @@ async function main() {
   });
 
   if (command === 'rules') return printRules(customRules);
+  if (!FORMATS.has(values.format)) {
+    throw new Error(
+      `Unknown format "${values.format}". Valid formats: ${FORMAT_NAMES.join(', ')}`,
+    );
+  }
 
   const settings = {
     format: values.format,
