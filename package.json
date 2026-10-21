@@ -1,6 +1,6 @@
 {
   "name": "sanitrace",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Turn agent session logs into redacted Markdown bug reports.",
   "type": "module",
   "bin": {

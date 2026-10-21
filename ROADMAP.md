@@ -1,8 +1,8 @@
 # Roadmap
 
-Repository version: 0.2.0 (2026-10-21). The latest npm release is 0.1.0. Items
-under "Shipped in 0.2.0" are implemented in this repository. The remaining
-items are proposals or work in progress.
+Repository version: 0.3.0 (2026-10-21). The latest npm release is 0.1.0. Items
+under "Shipped in 0.2.0" and "Shipped in 0.3.0" are implemented in this
+repository. The remaining items are proposals.
 
 ## Constraints
 
@@ -33,6 +33,12 @@ An accepted change keeps these properties:
 - Custom detectors from `.sanitrace.json` and local ESM modules.
 - `bug`, `security`, and `review` report profiles.
 - Encrypted mapping export and `sanitrace mapping show`.
+
+## Shipped in 0.3.0
+
+- OpenCode 2.1.1 export and Gemini CLI transcript parsers.
+- A composite GitHub Action with report artifacts and optional comments.
+- Cursor is rejected because its chats are stored only in SQLite.
 
 ## Priority order
 
@@ -76,15 +82,21 @@ Release criteria for 0.2.0:
 
 | ID | Work | Spec | Status |
 | --- | --- | --- | --- |
-| R5 | OpenCode parser | [0004](docs/specs/0004-session-formats.md) | Draft |
-| R6 | Gemini CLI parser | [0004](docs/specs/0004-session-formats.md) | Draft |
-| R7 | Cursor export parser | [0004](docs/specs/0004-session-formats.md) | Draft, conditional |
-| R8 | GitHub Action and example workflow | [0005](docs/specs/0005-github-action.md) | Draft |
+| R5 | OpenCode parser | [0004](docs/specs/0004-session-formats.md) | Implemented |
+| R6 | Gemini CLI parser | [0004](docs/specs/0004-session-formats.md) | Implemented |
+| R7 | Cursor export parser | [0004](docs/specs/0004-session-formats.md) | Rejected |
+| R8 | GitHub Action and example workflow | [0005](docs/specs/0005-github-action.md) | Implemented |
 
-R5 comes first because OpenCode sessions are used in this repository's own
-workflow. R6 follows with the same normalization layer. R7 ships only if Cursor
-provides a stable JSON export. Reading its SQLite store is not planned.
+R5 and R6 read local exports and normalize them into the existing report shape.
+R7 is rejected because Cursor stores chats only in SQLite, which is a non-goal.
 R8 renders a report and posts it to an issue or pull request from a workflow.
+
+Release criteria for 0.3.0:
+
+- R5, R6, and R8 are implemented. R7 is rejected with a reason.
+- Tests cover detection, both parsers, and the action failure paths.
+- README, CLI help, and CHANGELOG describe the new surface.
+- `npm test`, `npm run lint`, and the action self-test pass on CI.
 
 ## Later
 

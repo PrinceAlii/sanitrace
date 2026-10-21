@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - Add OpenCode 2.1.1 export and Gemini CLI transcript parsers with automatic
   detection and plain-text fallback.
