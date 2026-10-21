@@ -59,5 +59,7 @@ Write for an implementer who has read `src/redact.js`, `src/parse.js`,
 | 0003 | [Mapping export](0003-mapping-export.md) | Implemented | 0.2.0 |
 | 0004 | [Session formats](0004-session-formats.md) | Implemented | 0.3.0 |
 | 0005 | [GitHub Action](0005-github-action.md) | Implemented | 0.3.0 |
+| 0006 | [Plain-text mode](0006-plain-text-mode.md) | Accepted | 0.4.0 |
+| 0007 | [Report diff](0007-report-diff.md) | Accepted | 0.4.0 |
 
 The release order and priority model are in [ROADMAP.md](../../ROADMAP.md).

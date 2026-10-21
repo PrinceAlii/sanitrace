@@ -1,8 +1,8 @@
 # Roadmap
 
-Repository version: 0.3.0 (2026-10-21). The latest npm release is 0.3.0. Items
-under "Shipped in 0.2.0" and "Shipped in 0.3.0" are implemented in this
-repository. The remaining items are proposals.
+Repository version: 0.4.0 (2026-10-21). The latest npm release is 0.3.0. Items
+under "Shipped in 0.4.0", "Shipped in 0.3.0", and "Shipped in 0.2.0" are
+implemented in this repository. The remaining items are proposals.
 
 ## Constraints
 
@@ -40,6 +40,13 @@ An accepted change keeps these properties:
 - A composite GitHub Action with report artifacts and optional comments.
 - Cursor is rejected because its chats are stored only in SQLite.
 
+## Shipped in 0.4.0
+
+- Detector corpus and seeded parser fuzzing.
+- Plain-text mode with `--raw`.
+- `sanitrace diff` and content identifiers in report turns.
+- Report turns carry markers, so a diff can align them after an insertion.
+
 ## Priority order
 
 1. Reduce the chance of a missed credential or a leaked path.
@@ -59,16 +66,10 @@ session format, or a file format. A small fix does not need a spec.
 | R1 | Custom detectors in config and local modules | [0001](docs/specs/0001-custom-detectors.md) | Implemented |
 | R2 | Report profiles for bug, security, and review | [0002](docs/specs/0002-report-profiles.md) | Implemented |
 | R3 | Encrypted mapping export and `mapping show` | [0003](docs/specs/0003-mapping-export.md) | Implemented |
-| R4 | Detector corpus and parser fuzzing | none | Planned |
 
 R1 adds rules for internal formats, R2 adds report sections, and R3 adds an
 encrypted copy of the original values. A team can adopt these without editing
 the package.
-
-R4 is an engineering task with no user surface. It requires a generated corpus
-of values that match every detector, a set of near-miss values that must not
-match, and a seeded fuzz pass over the parsers. The fuzz pass uses `node:test`
-and no new dependency.
 
 Release criteria for 0.2.0:
 
@@ -98,17 +99,34 @@ Release criteria for 0.3.0:
 - README, CLI help, and CHANGELOG describe the new surface.
 - `npm test`, `npm run lint`, and the action self-test pass on CI.
 
+## 0.4.0: Plain text, diff, and test coverage
+
+| ID | Work | Spec | Status |
+| --- | --- | --- | --- |
+| R4 | Detector corpus and parser fuzzing | none | Implemented |
+| R9 | Plain-text mode with `--raw` | [0006](docs/specs/0006-plain-text-mode.md) | Implemented |
+| R10 | Report diff and turn identifiers | [0007](docs/specs/0007-report-diff.md) | Implemented |
+
+R4 adds a generated corpus that covers every detector, near-miss values that
+must not match, and a seeded fuzz pass over the parsers. It has no user surface.
+
+R9 writes redacted text without a report. R10 adds `sanitrace diff` and a
+content identifier to every rendered turn. The turn marker changes the default
+report, as spec 0007 records.
+
+Release criteria for 0.4.0:
+
+- R4, R9, and R10 are implemented.
+- Tests cover the corpus, the fuzz seed, raw mode, and every diff outcome.
+- README, CLI help, and CHANGELOG describe the new surface.
+- `npm test` and `npm run lint` pass on the full CI matrix.
+
 ## Later
 
-- **Session diff.** Compare two reports from the same task and show where the
-  turns diverged. Needs stable turn identifiers, which the current report does
-  not emit.
 - **Streaming parse.** `sanitrace` reads the whole input into memory. A streaming
   parser would accept large logs without a size limit. No spec yet.
 - **Custom report templates.** The profile system defines fixed sections first.
   Arbitrary templates need a file format and a validation story.
-- **Arbitrary text mode.** Redact pasted terminal output or a chat log that has
-  no session structure. This reuses the detector engine and skips the parser.
 - **Editor integration.** A task or command that runs the CLI on the current
   session file. Low value until profiles exist.
 - **Browser build.** A separate package could run the detectors in a page with no
@@ -154,6 +172,8 @@ this.
 | 0003 | [Mapping export](docs/specs/0003-mapping-export.md) | 0.2.0 |
 | 0004 | [Session formats](docs/specs/0004-session-formats.md) | 0.3.0 |
 | 0005 | [GitHub Action](docs/specs/0005-github-action.md) | 0.3.0 |
+| 0006 | [Plain-text mode](docs/specs/0006-plain-text-mode.md) | 0.4.0 |
+| 0007 | [Report diff](docs/specs/0007-report-diff.md) | 0.4.0 |
 
 Spec status and the writing rules are in
 [docs/specs/README.md](docs/specs/README.md).

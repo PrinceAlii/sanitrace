@@ -28,6 +28,10 @@ log and can be read before it is published.
   middle turns.
 - Writes `bug`, `security`, or `review` reports with profile-specific sections
   and prompts.
+- Writes redacted plain text with `--raw` when the input has no session
+  structure.
+- Compares two reports with `sanitrace diff` and shows changed, added, and
+  removed turns.
 - Writes an encrypted placeholder mapping on request, with no plaintext map on
   disk.
 - Runs every detector again over its own output and exits 3 if a match remains.
@@ -83,6 +87,8 @@ $ sanitrace <session.jsonl> -o report.md    # report to a file
 $ cat session.jsonl | sanitrace -           # read stdin
 $ sanitrace rules                           # list detectors
 $ sanitrace <session.jsonl> --check         # exit 1 if anything was redacted
+$ sanitrace notes.txt --raw                 # redacted plain text
+$ sanitrace diff old.md new.md              # compare two reports
 $ sanitrace mapping show report.map         # decrypt a mapping
 ```
 
@@ -91,7 +97,7 @@ Flags: `--profile <name>`, `--mapping <file>`,
 (repeatable), `--allow <value>` (never redact, repeatable), `--no-emails`,
 `--no-ips`, `--no-entropy`, `--no-outputs`, `--keep-reasoning`,
 `--keep-developer`, `--max-tool-chars <n>`, `--max-total <n>`, `--json`,
-`--format`.
+`--format`, `--raw`.
 
 The verify pass runs by default. Pass `--no-verify` to skip the second
 detection pass.
@@ -107,7 +113,7 @@ overrides detection when a file is ambiguous.
 | `claude` | Claude Code transcript JSONL |
 | `opencode` | JSON from `opencode session export <sessionID>` |
 | `gemini` | Gemini CLI JSONL under `~/.gemini/tmp/<project>/chats/` |
-| `text` | Any other input |
+| `text` | Any other input. Use `--raw` to write redacted text without a report. |
 
 Codex and Claude are checked first. OpenCode checks the `info` envelope and the
 typed messages. Gemini checks the `sessionId` and `projectHash` header and a
@@ -144,6 +150,59 @@ the redaction table do not change. `--json` includes the selected profile as
 $ sanitrace session.jsonl --profile security
 $ sanitrace session.jsonl --profile review -o review.md
 ```
+
+## Plain text
+
+`--raw` skips the session parser and the report renderer. It reads the input as
+text and writes the same text with placeholders for detected values. The input
+is not clipped at the 6,000 character block limit, so a pasted terminal log
+keeps its content.
+
+```console
+$ sanitrace notes.txt --raw
+$ cat session.log | sanitrace - --raw
+$ sanitrace notes.txt --raw -o notes.redacted.txt
+$ sanitrace notes.txt --raw --json
+```
+
+`--raw` implies `--format text`. `--format` accepts only `auto` or `text` in
+this mode. The detector flags and config keys apply, including `--allow`,
+`--disable`, `--keep-path`, `--no-entropy`, `--no-emails`, `--no-ips`,
+`--config`, and `--rule-module`.
+
+Raw mode maps the working directory to `<REPO>`, the home directory and
+`/Users/<user>` or `/home/<user>` to `~`, and the hostname to `<HOST>`.
+
+`--json` returns `{ "text": "...", "findings": [...], "residual": [] }`. The
+report-only flags `--profile`, `--mapping`, `--mapping-passphrase-env`,
+`--force`, `--max-total`, `--max-tool-chars`, `--keep-reasoning`,
+`--keep-developer`, and `--no-outputs` exit 2 with `--raw`. `--check` and
+`--no-verify` keep their report-mode meaning.
+
+## Diff reports
+
+`sanitrace diff` compares the transcript sections of two reports and shows the
+unchanged, changed, added, and removed turns.
+
+```console
+$ sanitrace diff old.md new.md
+$ sanitrace diff old.md new.md --json
+$ sanitrace diff old.md new.md -o diff.md
+```
+
+The command exits 0 when the transcripts are identical, 1 when a turn changed,
+was added, or was removed, and 2 for usage or read errors. It writes the output
+before it exits 1.
+
+Reports from sanitrace 0.4.0 or later contain a content identifier for every
+turn. The identifier is a short SHA-256 digest of the redacted turn text, so it
+does not expose a secret. `diff` recomputes the identifiers from the report
+text, so an edited report still compares. A report without turn markers exits 2;
+regenerate it with the current version.
+
+`diff` compares only the transcript. Metadata rows, narrative sections, and the
+redaction table are ignored. The output repeats report text and has the same
+sensitivity as the reports.
 
 ## Mapping
 
@@ -275,7 +334,7 @@ permissions:
 
 steps:
   - uses: actions/checkout@v4
-  - uses: PrinceAlii/sanitrace@v0.3.0
+  - uses: PrinceAlii/sanitrace@v0.4.0
     with:
       path: logs/session.jsonl
       profile: security
@@ -327,11 +386,15 @@ UUIDs, commit SHAs, and file names are kept because they identify the trace.
 
 Detection covers known formats. A report can still contain proprietary names,
 customer data in tool output, and credentials that no rule matches. The verify
-pass re-runs only the rules that exist, so read the report before publishing it.
+pass re-runs only the rules that exist, so read the report or raw text before
+publishing it.
 
 The entropy pass can replace identifiers that are not secrets. Use
 `--no-entropy` to disable it. Use a custom rule for an internal format, or add a
 built-in rule and a fixture; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+`sanitrace diff` reads reports, not session logs. It does not re-run detectors
+and it does not remove text that was present in the input reports.
 
 ## Development
 
@@ -342,8 +405,9 @@ $ npm run demo    # render the fixture
 ```
 
 `src/parse.js` reads session formats, `src/redact.js` holds the detectors,
-`src/render.js` writes Markdown, `src/index.js` runs the pipeline, and
-`bin/sanitrace.js` is the CLI. Fixtures with fake credentials live in `test/`.
+`src/render.js` writes Markdown, `src/diff.js` compares reports, `src/index.js`
+runs the pipeline, and `bin/sanitrace.js` is the CLI. Fixtures with fake
+credentials live in `test/`.
 
 Planned work is tracked in [ROADMAP.md](ROADMAP.md).
 

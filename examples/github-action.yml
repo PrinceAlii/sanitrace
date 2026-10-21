@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: PrinceAlii/sanitrace@v0.3.0
+      - uses: PrinceAlii/sanitrace@v0.4.0
         with:
           path: test/fixtures/codex-rollout.jsonl
           profile: review
@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: session-log
-      - uses: PrinceAlii/sanitrace@v0.3.0
+      - uses: PrinceAlii/sanitrace@v0.4.0
         with:
           path: logs/session.jsonl
           issue-number: "42"
