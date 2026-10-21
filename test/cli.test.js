@@ -4,9 +4,10 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-const bin = new URL('../bin/sanitrace.js', import.meta.url).pathname;
-const fixture = new URL('./fixtures/codex-rollout.jsonl', import.meta.url).pathname;
+const bin = fileURLToPath(new URL('../bin/sanitrace.js', import.meta.url));
+const fixture = fileURLToPath(new URL('./fixtures/codex-rollout.jsonl', import.meta.url));
 
 function cli(args, { input } = {}) {
   return new Promise((resolve) => {
