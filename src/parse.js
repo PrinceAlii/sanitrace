@@ -172,8 +172,22 @@ function openCodeToolInput(name, input) {
 }
 
 function geminiRole(type) {
-  if (type === 'user' || type === 'human') return 'user';
-  if (GEMINI_ASSISTANT_TYPES.has(type)) return 'assistant';
+  if (typeof type !== 'string') return null;
+  const role = type.toLowerCase();
+  if (role === 'user' || role === 'human') return 'user';
+  if (GEMINI_ASSISTANT_TYPES.has(role)) return 'assistant';
+  if (role === 'tool' || role === 'function' || role === 'tool_result') return 'tool';
+  if (role === 'developer' || role === 'system') return role;
+  return null;
+}
+
+function openCodeRole(type) {
+  if (typeof type !== 'string') return null;
+  const role = type.toLowerCase();
+  if (role === 'user' || role === 'human') return 'user';
+  if (role === 'assistant' || role === 'ai' || role === 'model') return 'assistant';
+  if (role === 'tool' || role === 'function' || role === 'tool_result') return 'tool';
+  if (role === 'developer' || role === 'system') return role;
   return null;
 }
 
@@ -480,52 +494,63 @@ function parseOpenCode(text, limits) {
       continue;
     }
 
-    if (message.type === 'user') {
+    const role = openCodeRole(message.type);
+    if (!role) {
+      result.skipped += 1;
+      continue;
+    }
+
+    if (role === 'tool') {
       const body = messageText(message.text) || messageText(message.content);
       if (!body.trim()) continue;
       result.turns.push({
-        role: 'user',
+        role,
+        blocks: [{ kind: 'output', ...clip(body, limits.maxToolChars) }],
+      });
+      continue;
+    }
+
+    if (role === 'user' || role === 'system' || role === 'developer') {
+      const body = messageText(message.text) || messageText(message.content);
+      if (!body.trim()) continue;
+      result.turns.push({
+        role,
         blocks: [{ kind: 'text', ...clip(body, limits.maxBlockChars) }],
       });
       continue;
     }
 
-    if (message.type === 'assistant') {
-      const blocks = [];
-      const parts = Array.isArray(message.content) ? message.content : [];
+    const blocks = [];
+    const parts = Array.isArray(message.content) ? message.content : [];
 
-      for (const part of parts) {
-        if (!isRecord(part)) continue;
+    for (const part of parts) {
+      if (!isRecord(part)) continue;
 
-        if (part.type === 'text') {
-          const body = messageText(part.text);
-          if (body.trim()) blocks.push({ kind: 'text', ...clip(body, limits.maxBlockChars) });
-        } else if (part.type === 'reasoning') {
-          const body = messageText(part.text);
-          if (body.trim()) blocks.push({ kind: 'reasoning', ...clip(body, limits.maxBlockChars) });
-        } else if (part.type === 'tool') {
-          result.toolCalls += 1;
-          blocks.push({
-            kind: 'tool',
-            name: typeof part.name === 'string' ? part.name : 'tool',
-            callId: part.id,
-            ...clip(openCodeToolInput(part.name, part.state?.input), limits.maxToolChars),
-          });
+      if (part.type === 'text') {
+        const body = messageText(part.text);
+        if (body.trim()) blocks.push({ kind: 'text', ...clip(body, limits.maxBlockChars) });
+      } else if (part.type === 'reasoning') {
+        const body = messageText(part.text);
+        if (body.trim()) blocks.push({ kind: 'reasoning', ...clip(body, limits.maxBlockChars) });
+      } else if (part.type === 'tool') {
+        result.toolCalls += 1;
+        blocks.push({
+          kind: 'tool',
+          name: typeof part.name === 'string' ? part.name : 'tool',
+          callId: part.id,
+          ...clip(openCodeToolInput(part.name, part.state?.input), limits.maxToolChars),
+        });
 
-          const output =
-            messageText(part.state?.content) ||
-            (typeof part.state?.error === 'string' ? part.state.error : '');
-          if (output.trim()) {
-            blocks.push({ kind: 'output', ...clip(output, limits.maxToolChars) });
-          }
+        const output =
+          messageText(part.state?.content) ||
+          (typeof part.state?.error === 'string' ? part.state.error : '');
+        if (output.trim()) {
+          blocks.push({ kind: 'output', ...clip(output, limits.maxToolChars) });
         }
       }
-
-      if (blocks.length > 0) result.turns.push({ role: 'assistant', blocks });
-      continue;
     }
 
-    result.skipped += 1;
+    if (blocks.length > 0) result.turns.push({ role: 'assistant', blocks });
   }
 
   return result;
@@ -597,7 +622,13 @@ function parseGemini(text, limits) {
     }
 
     const body = geminiContentText(record.content);
-    if (body.trim()) blocks.push({ kind: 'text', ...clip(body, limits.maxBlockChars) });
+    if (body.trim()) {
+      const isTool = role === 'tool';
+      blocks.push({
+        kind: isTool ? 'output' : 'text',
+        ...clip(body, isTool ? limits.maxToolChars : limits.maxBlockChars),
+      });
+    }
 
     for (const call of Array.isArray(record.toolCalls) ? record.toolCalls : []) {
       if (!isRecord(call)) continue;

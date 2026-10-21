@@ -73,7 +73,7 @@ Each parser returns the same shape as `parseCodex` and `parseClaude`:
     "cwd": null,
     "model": "example-model",
     "cliVersion": "1.2.3",
-    "source": "opencode",
+    "source": "OpenCode",
     "startedAt": "2026-10-21T12:00:00.000Z",
     "endedAt": null,
     "sessionId": "ses_..."
@@ -98,7 +98,7 @@ Role mapping:
 | `assistant`, `ai`, `model` | `assistant` |
 | `tool`, `function`, `tool_result` | `tool` |
 | `developer`, `system` | as written |
-| anything else | lowercased source value, or `unknown` if empty |
+| any other record type | skipped and counted |
 
 Tool calls become `tool` blocks with the tool name. Tool results become
 `output` blocks. Reasoning summaries become `reasoning` blocks only when the
@@ -158,7 +158,7 @@ Do not commit a real session.
 | Malformed JSONL line | Line skipped, count incremented |
 | Unknown record type | Skipped, count incremented |
 | Missing timestamp or token fields | `null` or zero, no error |
-| Unsupported role | Lowercased source value, or `unknown` |
+| Recognized role with no text | No turn is added |
 | Unsupported content part | Ignored |
 | `--format` names an unknown parser | Exit 2, list valid names. In 0.1.1 an unknown name fell back to `text`; the new check is a deliberate change |
 

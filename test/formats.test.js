@@ -98,6 +98,54 @@ test('maps an OpenCode version field to cliVersion', () => {
   assert.equal(parsed.meta.cliVersion, '2.1.1');
 });
 
+test('maps OpenCode role aliases and skips metadata messages', () => {
+  const document = {
+    info: { id: 'ses_roles', time: {}, tokens: {} },
+    messages: [
+      { type: 'system', text: 'system rules' },
+      { type: 'human', text: 'question' },
+      { type: 'ai', content: [{ type: 'text', text: 'answer' }] },
+      { type: 'tool', text: 'tool result' },
+      { type: 'compaction', text: 'summary' },
+    ],
+  };
+
+  const parsed = parse(JSON.stringify(document), { format: 'opencode' });
+  assert.deepEqual(parsed.turns.map((turn) => turn.role), [
+    'system',
+    'user',
+    'assistant',
+    'tool',
+  ]);
+  assert.deepEqual(
+    blocksOf(parsed).map((block) => block.kind),
+    ['text', 'text', 'text', 'output'],
+  );
+  assert.equal(parsed.skipped, 1);
+});
+
+test('maps Gemini role aliases and skips info records', () => {
+  const lines = [
+    '{"sessionId":"session-roles","projectHash":"hash","startTime":"2026-10-21T08:00:00.000Z","directories":["/Users/example/project"]}',
+    '{"type":"developer","content":"system rules"}',
+    '{"type":"function","content":"tool result"}',
+    '{"type":"gemini","content":"answer"}',
+    '{"type":"info","content":"compressed"}',
+  ];
+
+  const parsed = parse(lines.join('\n'), { format: 'gemini' });
+  assert.deepEqual(parsed.turns.map((turn) => turn.role), [
+    'developer',
+    'tool',
+    'assistant',
+  ]);
+  assert.deepEqual(
+    blocksOf(parsed).map((block) => block.kind),
+    ['text', 'output', 'text'],
+  );
+  assert.equal(parsed.skipped, 1);
+});
+
 test('malformed OpenCode documents return an empty result', () => {
   for (const input of ['{"info":', '[]', '{"messages":[]}']) {
     const parsed = parse(input, { format: 'opencode' });
