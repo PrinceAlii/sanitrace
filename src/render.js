@@ -4,8 +4,38 @@
 // Tool input and output are collapsed into <details> blocks so a large log fits
 // in an issue body.
 
+import { createHash } from 'node:crypto';
+
 export const VERSION = '0.3.0';
 export const REDACTIONS_MARKER = '<!-- sanitrace:redactions -->';
+export const TURN_END_MARKER = '<!-- sanitrace:turn:end -->';
+
+// A turn marker is `<!-- sanitrace:turn:<index> -->` before stamping and
+// `<!-- sanitrace:turn:<index>:<id> -->` after. The optional identifier lets a
+// stamped report parse without recomputing first.
+export const TURN_PREFIX = '<!-- sanitrace:turn:';
+export const TURN_MARKER = /^<!-- sanitrace:turn:(\d+)(?::([0-9a-f]{12}))? -->$/;
+export const TURN_HEADING = /^### (\d+)\. ([^\s].*)$/;
+
+// The identifier is the first 12 hex characters of SHA-256 over the role and the
+// normalized body. Normalization removes line-ending and whitespace noise so the
+// same turn hashes the same on every platform.
+export function turnId(role, body) {
+  return createHash('sha256')
+    .update(`${role}\n${normalizeBody(body)}`, 'utf8')
+    .digest('hex')
+    .slice(0, 12);
+}
+
+export function normalizeBody(body) {
+  const rows = String(body)
+    .replaceAll('\r\n', '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+$/, ''));
+  while (rows.length > 0 && rows[0] === '') rows.shift();
+  while (rows.length > 0 && rows[rows.length - 1] === '') rows.pop();
+  return rows.join('\n');
+}
 
 const PROFILES = {
   bug: {
@@ -216,6 +246,7 @@ export function render(parsed, options = {}) {
   }
 
   if (kept.length > 0) lines.push(kept.join('\n'));
+  lines.push(TURN_END_MARKER, '');
   if (elided > 0) {
     lines.push(`_${elided} turn(s) elided to keep the report under ${budget} chars; raise \`--max-total\` to keep more._`, '');
   }
@@ -240,7 +271,55 @@ function renderTurn(turn, index, options, scale) {
     .filter((block) => !(block.kind === 'output' && options.outputs === false))
     .map((block) => renderBlock(block, scale))
     .join('\n');
-  return `### ${index + 1}. ${turn.role}\n\n${body}\n`;
+  return `<!-- sanitrace:turn:${index + 1} -->\n### ${index + 1}. ${turn.role}\n\n${body}\n`;
+}
+
+// stampTurnIds replaces each `<!-- sanitrace:turn:N -->` marker with
+// `<!-- sanitrace:turn:N:<id> -->`. The id hashes the role and the normalized
+// body, so it stays stable after redaction and across platforms. A marker with
+// no role stays a placeholder, and the end marker passes through unchanged.
+export function stampTurnIds(markdown) {
+  const rows = String(markdown).replaceAll('\r\n', '\n').split('\n');
+  const out = [];
+  let current = null;
+
+  const flush = () => {
+    if (!current) return;
+    if (current.role !== null) {
+      const id = turnId(current.role, current.body.join('\n'));
+      out[current.at] = `<!-- sanitrace:turn:${current.index}:${id} -->`;
+    }
+    current = null;
+  };
+
+  for (const line of rows) {
+    const marker = line.match(TURN_MARKER);
+    if (marker) {
+      flush();
+      out.push(line);
+      current = { index: marker[1], at: out.length - 1, role: null, body: [] };
+      continue;
+    }
+    if (line === TURN_END_MARKER) {
+      flush();
+      out.push(line);
+      continue;
+    }
+    if (current === null) {
+      out.push(line);
+      continue;
+    }
+    const heading = current.role === null ? line.match(TURN_HEADING) : null;
+    if (heading) {
+      current.role = heading[2];
+      out.push(line);
+      continue;
+    }
+    current.body.push(line);
+    out.push(line);
+  }
+  flush();
+  return out.join('\n');
 }
 
 function renderBlock(block, scale) {
