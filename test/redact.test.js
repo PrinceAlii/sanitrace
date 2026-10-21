@@ -96,3 +96,81 @@ test('rule list is stable and documented', () => {
     assert.match(rule.placeholder, /^\[|^</);
   }
 });
+
+test('mapping mode returns distinct detector entries and omits them otherwise', () => {
+  const input =
+    'key sk-proj-Ab3dEf6hIj9kLm2nOp5qRs8t again sk-proj-Ab3dEf6hIj9kLm2nOp5qRs8t ' +
+    'mail dev@acme-internal.example';
+
+  const plain = redact(input, { entropy: false });
+  assert.ok(!Object.hasOwn(plain, 'entries'));
+  assert.ok(!Object.hasOwn(plain, 'pathEntries'));
+
+  const mapped = redact(input, { entropy: false, mapping: true });
+  assert.deepEqual(mapped.entries, [
+    {
+      placeholder: '[OPENAI_KEY_1]',
+      value: 'sk-proj-Ab3dEf6hIj9kLm2nOp5qRs8t',
+    },
+    { placeholder: '[EMAIL_1]', value: 'dev@acme-internal.example' },
+  ]);
+  assert.deepEqual(mapped.pathEntries, []);
+});
+
+test('mapping records an env-assignment value without the variable name', () => {
+  const value = 'UnitTestSecretValue123';
+  const { text, entries } = redact(`API_TOKEN=${value} API_TOKEN=${value}`, {
+    entropy: false,
+    mapping: true,
+  });
+
+  assert.equal(text, 'API_TOKEN=[ENV_VALUE_1] API_TOKEN=[ENV_VALUE_1]');
+  assert.deepEqual(entries, [{ placeholder: '[ENV_VALUE_1]', value }]);
+});
+
+test('mapping excludes punctuation kept after an env-assignment value', () => {
+  const { text, entries } = redact('API_TOKEN=UnitTestSecretValue123.', {
+    entropy: false,
+    mapping: true,
+  });
+
+  assert.equal(text, 'API_TOKEN=[ENV_VALUE_1].');
+  assert.deepEqual(entries, [
+    { placeholder: '[ENV_VALUE_1]', value: 'UnitTestSecretValue123' },
+  ]);
+});
+
+test('mapping records the suffix after a custom keepGroup prefix', () => {
+  const value = 'acme_A1b2C3d4E5f6G7h8I9j0K1l2';
+  const { text, entries } = redact(`token acme=${value}`, {
+    entropy: false,
+    mapping: true,
+    rules: [
+      {
+        id: 'acme-assignment',
+        label: 'ACME_ASSIGNMENT',
+        pattern: '(acme=)acme_[A-Za-z0-9]{24}',
+        keepGroup: 1,
+      },
+    ],
+  });
+
+  assert.equal(text, 'token acme=[ACME_ASSIGNMENT_1]');
+  assert.deepEqual(entries, [{ placeholder: '[ACME_ASSIGNMENT_1]', value }]);
+});
+
+test('mapping records a path value only when the prefix occurs', () => {
+  const { text, pathEntries } = redact('edited /Users/ali/dev/acme/src/app.ts and ~', {
+    entropy: false,
+    mapping: true,
+    paths: [
+      { from: '/Users/ali/dev/acme', to: '<REPO>' },
+      { from: '/opt/not-present', to: '~' },
+    ],
+  });
+
+  assert.equal(text, 'edited <REPO>/src/app.ts and ~');
+  assert.deepEqual(pathEntries, [
+    { placeholder: '<REPO>', value: '/Users/ali/dev/acme' },
+  ]);
+});

@@ -154,13 +154,19 @@ function shannonEntropy(value) {
  * @property {{from: string, to: string}[]} [paths] literal prefixes to map to placeholders
  * @property {CustomRule[]} [rules] custom rules that run after the built-ins
  * @property {CustomRule[]} [customRules] alias for rules
+ * @property {boolean} [mapping] return the original values of replacements
  */
 
 /**
  * Redacts a blob of text.
  * @param {string} input
  * @param {RedactOptions} [options]
- * @returns {{text: string, findings: {rule: string, label: string, count: number, samples: string[]}[]}}
+ * @returns {{
+ *   text: string,
+ *   findings: {rule: string, label: string, count: number, samples: string[]}[],
+ *   entries?: {placeholder: string, value: string}[],
+ *   pathEntries?: {placeholder: string, value: string}[]
+ * }}
  */
 export function redact(input, options = {}) {
   const allow = options.allow ?? [];
@@ -169,6 +175,8 @@ export function redact(input, options = {}) {
   const counters = new Map();
   const samples = new Map();
   const seen = new Map();
+  const mapped = options.mapping === true ? new Map() : null;
+  const pathEntries = [];
   let text = String(input);
 
   for (const rule of RULES) {
@@ -181,7 +189,15 @@ export function redact(input, options = {}) {
       if (isAllowed(match, allow)) return match;
 
       const token = placeholderFor(rule, match, counters, samples, seen);
-      return rule.replace ? rule.replace(token, ...args) : token;
+      const replaced = rule.replace ? rule.replace(token, ...args) : token;
+      if (mapped && replaced !== match) {
+        const value =
+          rule.id === 'env-assignment'
+            ? String(args[2]).replace(/[.,;:!?]+$/, '')
+            : match;
+        mapped.set(token, value);
+      }
+      return replaced;
     });
   }
 
@@ -193,7 +209,9 @@ export function redact(input, options = {}) {
 
       const token = placeholderFor(rule, match, counters, samples, seen);
       const kept = keptGroup(rule, args);
-      return kept === null ? token : `${kept}${token}`;
+      const replaced = kept === null ? token : `${kept}${token}`;
+      if (mapped && replaced !== match) mapped.set(token, customMatchValue(rule, args));
+      return replaced;
     });
   }
 
@@ -207,6 +225,7 @@ export function redact(input, options = {}) {
       const pathSamples = samples.get(PATH_RULE.id) ?? [];
       if (pathSamples.length < 3) pathSamples.push(from);
       samples.set(PATH_RULE.id, pathSamples);
+      if (mapped) pathEntries.push({ placeholder: to, value: from });
     }
     text = text.split(from).join(to);
   }
@@ -219,14 +238,21 @@ export function redact(input, options = {}) {
       if (match.startsWith('/')) return match;
       if (!/[A-Z]/.test(match) || !/[a-z]/.test(match) || !/\d/.test(match)) return match;
       if (shannonEntropy(match) < 3.9) return match;
-      return placeholderFor(ENTROPY_RULE, match, counters, samples, seen);
+      const token = placeholderFor(ENTROPY_RULE, match, counters, samples, seen);
+      if (mapped) mapped.set(token, match);
+      return token;
     });
   }
 
   const definitions = new Map(
     [...RULES, ENTROPY_RULE, PATH_RULE, ...customRules].map((rule) => [rule.id, rule]),
   );
-  return { text, findings: toFindings(counters, samples, definitions) };
+  const result = { text, findings: toFindings(counters, samples, definitions) };
+  if (mapped) {
+    result.entries = [...mapped].map(([placeholder, value]) => ({ placeholder, value }));
+    result.pathEntries = pathEntries;
+  }
+  return result;
 }
 
 /**

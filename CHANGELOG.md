@@ -10,6 +10,11 @@
 - Custom rules run after the built-in detectors and before path mapping and the
   entropy pass. `sanitrace rules` adds a `source` column, and `--json` findings
   include custom rules.
+- Add `--mapping <file>` and `--mapping-passphrase-env` to write an encrypted
+  placeholder-to-original map after the report. Add `mapping show` and
+  `--report` to decrypt the map and check the Markdown report digest. `--force`
+  replaces an existing mapping file. The map uses `node:crypto` and adds no
+  runtime dependency.
 
 ## 0.1.1
 

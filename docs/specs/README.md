@@ -56,7 +56,7 @@ Write for an implementer who has read `src/redact.js`, `src/parse.js`,
 | --- | --- | --- | --- |
 | 0001 | [Custom detectors](0001-custom-detectors.md) | Implemented | 0.2.0 |
 | 0002 | [Report profiles](0002-report-profiles.md) | Implemented | 0.2.0 |
-| 0003 | [Mapping export](0003-mapping-export.md) | Draft | 0.2.0 |
+| 0003 | [Mapping export](0003-mapping-export.md) | Implemented | 0.2.0 |
 | 0004 | [Session formats](0004-session-formats.md) | Draft | 0.3.0 |
 | 0005 | [GitHub Action](0005-github-action.md) | Draft | 0.3.0 |
 

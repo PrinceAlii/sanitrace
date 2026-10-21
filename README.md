@@ -28,6 +28,8 @@ log and can be read before it is published.
   middle turns.
 - Writes `bug`, `security`, or `review` reports with profile-specific sections
   and prompts.
+- Writes an encrypted placeholder mapping on request, with no plaintext map on
+  disk.
 - Runs every detector again over its own output and exits 3 if a match remains.
 - Runs locally, with no network access and no runtime dependencies.
 
@@ -81,12 +83,15 @@ $ sanitrace <session.jsonl> -o report.md    # report to a file
 $ cat session.jsonl | sanitrace -           # read stdin
 $ sanitrace rules                           # list detectors
 $ sanitrace <session.jsonl> --check         # exit 1 if anything was redacted
+$ sanitrace mapping show report.map         # decrypt a mapping
 ```
 
-Flags: `--profile <name>`, `--rule-module <path>` (repeatable),
-`--allow <value>` (never redact, repeatable), `--no-emails`, `--no-ips`,
-`--no-entropy`, `--no-outputs`, `--keep-reasoning`, `--keep-developer`,
-`--max-tool-chars <n>`, `--max-total <n>`, `--json`, `--format`.
+Flags: `--profile <name>`, `--mapping <file>`,
+`--mapping-passphrase-env <name>`, `--force`, `--rule-module <path>`
+(repeatable), `--allow <value>` (never redact, repeatable), `--no-emails`,
+`--no-ips`, `--no-entropy`, `--no-outputs`, `--keep-reasoning`,
+`--keep-developer`, `--max-tool-chars <n>`, `--max-total <n>`, `--json`,
+`--format`.
 
 The verify pass runs by default. Pass `--no-verify` to skip the second
 detection pass.
@@ -119,6 +124,40 @@ the redaction table do not change. `--json` includes the selected profile as
 $ sanitrace session.jsonl --profile security
 $ sanitrace session.jsonl --profile review -o review.md
 ```
+
+## Mapping
+
+`--mapping <file>` writes an encrypted placeholder-to-original map when the
+report is written.
+
+```console
+$ export SANITRACE_MAPPING_PASSPHRASE='correct horse battery staple'
+$ sanitrace session.jsonl -o report.md --mapping report.map
+$ sanitrace mapping show report.map --report report.md
+```
+
+The passphrase comes from `SANITRACE_MAPPING_PASSPHRASE`. Set
+`--mapping-passphrase-env <name>` to read another uppercase environment
+variable. The value must be at least 12 characters; use 16 or more. The
+passphrase never appears in `argv`.
+
+`mapping show` prints the decrypted JSON to stdout and one warning line to
+stderr. It does not write a file. `--report <file>` recomputes the SHA-256
+digest of the Markdown report and exits 2 when it differs. With `--json`, pass
+the Markdown report, not the JSON payload.
+
+The mapping holds original secrets. Treat it as sensitive as the session log.
+Store it outside the repository or add it to `.gitignore`. The file uses scrypt
+and AES-256-GCM and is written with mode `0600` where the platform supports it.
+It contains no plaintext mapping. The report and `--json` output never contain
+the mapping.
+
+`--force` replaces an existing mapping file. It does not overwrite the report.
+Without `--force`, an existing mapping is an error. A symlink at the mapping
+path is rejected even with `--force`. The mapping is written even when
+`--check` exits 1 or `--verify` exits 3.
+
+Mapping export uses `node:crypto` and adds no runtime dependency.
 
 ## Configuration
 
