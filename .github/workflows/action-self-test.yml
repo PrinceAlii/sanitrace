@@ -47,7 +47,7 @@ jobs:
           comment: false
           artifact-name: sanitrace-action-self-test
       - name: Download the artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: sanitrace-action-self-test
           path: artifact
