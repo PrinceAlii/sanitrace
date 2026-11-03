@@ -2,6 +2,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
 const CONFIG_NAME = '.sanitrace.json';
+const BOOLEAN_KEYS = new Set(['entropy', 'emails', 'ips', 'reasoning', 'developer', 'outputs']);
+const STRING_ARRAY_KEYS = new Set(['allow', 'disable', 'keepPaths', 'ruleModules']);
 
 const KNOWN_KEYS = new Set([
   'allow',
@@ -42,19 +44,31 @@ export function loadConfig(explicit, from = process.cwd()) {
 
   for (const key of Object.keys(raw)) {
     if (!KNOWN_KEYS.has(key)) throw new Error(`Unknown config key "${key}" in ${file}`);
-    if (key === 'allow' || key === 'disable' || key === 'keepPaths') {
-      if (!Array.isArray(raw[key])) throw new Error(`Config key "${key}" must be an array in ${file}`);
+    if (STRING_ARRAY_KEYS.has(key)) {
+      if (!Array.isArray(raw[key]) || raw[key].some((entry) => typeof entry !== 'string')) {
+        throw new Error(`Config key "${key}" must be an array of strings in ${file}`);
+      }
+      if (raw[key].some((entry) => entry.trim() === '')) {
+        throw new Error(`Config key "${key}" must contain non-empty strings in ${file}`);
+      }
+    }
+    if (BOOLEAN_KEYS.has(key) && typeof raw[key] !== 'boolean') {
+      throw new Error(`Config key "${key}" must be a boolean in ${file}`);
+    }
+    if (key === 'maxToolChars' && (!Number.isSafeInteger(raw[key]) || raw[key] < 100)) {
+      throw new Error(`Config key "maxToolChars" must be an integer of at least 100 in ${file}`);
+    }
+    if (key === 'maxTotal' && (!Number.isSafeInteger(raw[key]) || raw[key] < 1)) {
+      throw new Error(`Config key "maxTotal" must be a positive integer in ${file}`);
+    }
+    if (key === 'disable' && raw[key].some((entry) => !/^[a-z][a-z0-9-]{1,31}$/.test(entry))) {
+      throw new Error(`Config key "disable" must contain rule ids in ${file}`);
     }
     if (key === 'profile' && typeof raw[key] !== 'string') {
       throw new Error(`Config key "profile" must be a string in ${file}`);
     }
     if (key === 'customRules' && !Array.isArray(raw[key])) {
       throw new Error(`Config key "customRules" must be an array in ${file}`);
-    }
-    if (key === 'ruleModules') {
-      if (!Array.isArray(raw[key]) || raw[key].some((entry) => typeof entry !== 'string')) {
-        throw new Error(`Config key "ruleModules" must be an array of strings in ${file}`);
-      }
     }
   }
 

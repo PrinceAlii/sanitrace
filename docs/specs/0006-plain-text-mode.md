@@ -1,6 +1,6 @@
 # 0006: Plain-text mode
 
-Status: Accepted
+Status: Implemented
 Target: 0.4.0
 Depends on: none
 

@@ -15,12 +15,13 @@ includes `bin`, `src`, `README.md`, and `LICENSE`.
 | Draft | The design is under review. No code has shipped. |
 | Accepted | The design is approved. Implementation may start. |
 | Implementing | Code is in progress and the spec may still change. |
-| Implemented | The feature shipped. The spec stays for rationale and history. |
+| Implemented | The feature is implemented in the repository. The spec stays for rationale and history. |
 | Rejected | The work is not planned. The reason is recorded. |
 
 A spec starts as Draft. Moving it to Accepted means the open questions are
-resolved or explicitly deferred. Moving it to Implemented means the test plan
-passed on the CI matrix and the documentation changed in the same release.
+resolved or explicitly deferred. Move it to Implemented when the implementation
+and documentation are in the repository. Check the test plan on the CI matrix
+before release.
 
 If an implementation contradicts an accepted spec, update the spec in the same
 pull request. Do not leave a stale design in the repository.
@@ -59,7 +60,7 @@ Write for an implementer who has read `src/redact.js`, `src/parse.js`,
 | 0003 | [Mapping export](0003-mapping-export.md) | Implemented | 0.2.0 |
 | 0004 | [Session formats](0004-session-formats.md) | Implemented | 0.3.0 |
 | 0005 | [GitHub Action](0005-github-action.md) | Implemented | 0.3.0 |
-| 0006 | [Plain-text mode](0006-plain-text-mode.md) | Accepted | 0.4.0 |
-| 0007 | [Report diff](0007-report-diff.md) | Accepted | 0.4.0 |
+| 0006 | [Plain-text mode](0006-plain-text-mode.md) | Implemented | 0.4.0 |
+| 0007 | [Report diff](0007-report-diff.md) | Implemented | 0.4.0 |
 
 The release order and priority model are in [ROADMAP.md](../../ROADMAP.md).

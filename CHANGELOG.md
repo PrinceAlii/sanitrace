@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Validate configuration types and numeric limits before reading input. Invalid
+  values now fail even when a CLI flag overrides them.
+
 ## 0.4.0
 
 - Add `--raw` to write redacted plain text without a report. Raw mode keeps the

@@ -121,10 +121,63 @@ Release criteria for 0.4.0:
 - README, CLI help, and CHANGELOG describe the new surface.
 - `npm test` and `npm run lint` pass on the full CI matrix.
 
-## Later
+## Future work
 
-- **Streaming parse.** `sanitrace` reads the whole input into memory. A streaming
-  parser would accept large logs without a size limit. No spec yet.
+These stages describe priority, not release dates. GitHub issues track the
+work and its status. Revisit the order when evidence or user needs change.
+
+### 1. Reduce exposure
+
+- [Build a labeled redaction evaluation corpus](https://github.com/PrinceAlii/sanitrace/issues/6).
+- [Test redaction across the full output pipeline](https://github.com/PrinceAlii/sanitrace/issues/7).
+- [Define output behavior for verification and write failures](https://github.com/PrinceAlii/sanitrace/issues/5).
+- [Review the GitHub Action publication boundary](https://github.com/PrinceAlii/sanitrace/issues/8).
+- [Document configuration trust and local execution boundaries](https://github.com/PrinceAlii/sanitrace/issues/13).
+- [Validate configuration values](https://github.com/PrinceAlii/sanitrace/issues/15).
+- [Test path redaction across platforms](https://github.com/PrinceAlii/sanitrace/issues/18).
+- [Test detector overlap and replacement stability](https://github.com/PrinceAlii/sanitrace/issues/19).
+- [Bound custom detector execution costs](https://github.com/PrinceAlii/sanitrace/issues/20).
+- [Review diagnostic output for sensitive data](https://github.com/PrinceAlii/sanitrace/issues/21).
+- [Document the sensitivity of library return values](https://github.com/PrinceAlii/sanitrace/issues/22).
+- [Test report rendering with adversarial Markdown](https://github.com/PrinceAlii/sanitrace/issues/23).
+- [Test the GitHub Action in permission and failure scenarios](https://github.com/PrinceAlii/sanitrace/issues/26).
+- [Define a process for detector changes](https://github.com/PrinceAlii/sanitrace/issues/30).
+- [Review issue templates for safe reproduction details](https://github.com/PrinceAlii/sanitrace/issues/34).
+
+Complete the evaluation and output reviews before relying on them to set
+release criteria. A passing evaluation cannot prove that a report contains no
+secrets. Reports still require review before publication.
+
+### 2. Make releases predictable
+
+- [Test installed packages and define a release process](https://github.com/PrinceAlii/sanitrace/issues/9).
+- [Define compatibility guarantees for the CLI and library](https://github.com/PrinceAlii/sanitrace/issues/10).
+- [Track session format changes with versioned fixtures](https://github.com/PrinceAlii/sanitrace/issues/11).
+- [Prepare the project for outside contributors](https://github.com/PrinceAlii/sanitrace/issues/14).
+- [Make skipped and malformed session records visible](https://github.com/PrinceAlii/sanitrace/issues/16).
+- [Test ambiguous session format detection](https://github.com/PrinceAlii/sanitrace/issues/17).
+- [Define report diff behavior for edited and large reports](https://github.com/PrinceAlii/sanitrace/issues/24).
+- [Add mapping format compatibility fixtures](https://github.com/PrinceAlii/sanitrace/issues/25).
+- [Define support policy for Node and operating systems](https://github.com/PrinceAlii/sanitrace/issues/27).
+- [Keep specs and release documentation in sync](https://github.com/PrinceAlii/sanitrace/issues/28).
+- [Provide an API usage and migration guide](https://github.com/PrinceAlii/sanitrace/issues/29).
+- [Test shell pipelines and exit code handling](https://github.com/PrinceAlii/sanitrace/issues/31).
+- [Review report size limits and truncation](https://github.com/PrinceAlii/sanitrace/issues/32).
+- [Define a workflow for adding session formats](https://github.com/PrinceAlii/sanitrace/issues/33).
+
+Use the compatibility policy and release checks to decide when a 1.0 release
+is appropriate. Format maintenance and contributor guidance continue after
+that release.
+
+### 3. Support larger inputs
+
+- [Set input limits and evaluate streaming for large sessions](https://github.com/PrinceAlii/sanitrace/issues/12).
+
+Measure the current implementation before selecting limits or a streaming
+design. Any new interface or format requires a spec.
+
+### Ideas without a target
+
 - **Custom report templates.** The profile system defines fixed sections first.
   Arbitrary templates need a file format and a validation story.
 - **Editor integration.** A task or command that runs the CLI on the current

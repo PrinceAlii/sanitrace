@@ -24,6 +24,7 @@ report or a review.
 - [Custom detectors](#custom-detectors)
 - [GitHub Action](#github-action)
 - [Continuous integration](#continuous-integration)
+- [JavaScript API](#javascript-api)
 - [Detectors](#detectors)
 - [Limits](#limits)
 - [Development](#development)
@@ -269,6 +270,13 @@ Mapping export uses `node:crypto` and adds no runtime dependency.
 sanitrace reads `.sanitrace.json` from the working directory upward. CLI flags
 override the file. Unknown keys are an error.
 
+Configuration must be valid even when a CLI flag overrides a value. Detector
+and output switches accept booleans. `allow`, `disable`, `keepPaths`, and
+`ruleModules` accept arrays of non-empty strings. A `disable` entry must use a
+lowercase rule ID with 2 to 32 letters, digits, or hyphens and start with a
+letter. `maxToolChars` must be an integer of at least 100. `maxTotal` must be a
+positive integer. Both limits must be safe integers.
+
 ```json
 {
   "allow": ["@mycompany.example", "github.com/myorg"],
@@ -387,6 +395,21 @@ for this repository's self-test. The action runs on `ubuntu-latest` with Node
 
 `--check` exits 1 when at least one redaction occurred. It writes the report
 before it exits.
+
+## JavaScript API
+
+```js
+import { sanitize } from 'sanitrace';
+
+const result = sanitize('A synthetic session');
+console.log(result.markdown);
+```
+
+`sanitize` returns `markdown`, `findings`, `residual`, and `parsed`. The
+`parsed` field can contain original session content. If mapping is enabled, the
+`mapping` field contains original values. Treat both fields as sensitive.
+Review the Markdown before sharing it. The findings and residual samples can
+also contain sensitive information.
 
 ## Detectors
 

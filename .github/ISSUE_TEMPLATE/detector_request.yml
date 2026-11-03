@@ -1,13 +1,19 @@
 name: Detector or format request
-description: A credential shape or session format sanitrace does not cover.
+description: Request a session format or report a false positive.
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is public. Do not include real credentials or session logs.
+        Report a credential format that is not redacted through
+        [private vulnerability reporting](https://github.com/PrinceAlii/sanitrace/security/advisories/new).
+        See the [security policy](https://github.com/PrinceAlii/sanitrace/blob/main/SECURITY.md).
   - type: dropdown
     id: kind
     attributes:
       label: What is missing?
       options:
-        - A credential format that is not redacted
         - A session format that does not parse
         - A false positive
         - Other
@@ -18,8 +24,8 @@ body:
     attributes:
       label: Sample
       description: |
-        For credentials, paste a **fake but structurally realistic** value, or a
-        real revoked one. For formats, a five-line excerpt of the log is enough.
+        Provide a minimal synthetic example. Do not paste a real session or a
+        real credential, even if it has been revoked.
       render: text
     validations:
       required: true
@@ -28,6 +34,13 @@ body:
     attributes:
       label: Where does this show up?
       description: Docs link, tool, vendor, or the parser output you expected.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: The example contains only synthetic data and no private information.
+          required: true
   - type: checkboxes
     id: contribute
     attributes:
