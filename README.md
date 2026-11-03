@@ -146,6 +146,12 @@ Codex and Claude are checked first. OpenCode checks the `info` envelope and the
 typed messages. Gemini checks the `sessionId` and `projectHash` header and a
 Gemini event or `toolCalls` array.
 
+The Codex and Claude checks inspect the first 20,000 characters and can match
+unrelated JSON or incomplete records. OpenCode detection requires a complete
+JSON document. Gemini detection requires both the header and an event. Use
+`--format <name>` when detection selects the wrong format or falls back to
+text. For example, a Gemini header without an event requires `--format gemini`.
+
 Cursor is not supported. Cursor stores chats in a SQLite database, and
 sanitrace does not read SQLite.
 
@@ -394,7 +400,11 @@ for this repository's self-test. The action runs on `ubuntu-latest` with Node
 ```
 
 `--check` exits 1 when at least one redaction occurred. It writes the report
-before it exits.
+before it exits. A failed write to stdout exits 2.
+
+In Bash, enable `set -o pipefail` when piping the output to another command.
+The pipeline then fails if sanitrace or another command fails. If more than one
+command fails, Bash returns the status of the rightmost failed command.
 
 ## JavaScript API
 

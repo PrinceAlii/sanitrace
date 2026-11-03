@@ -27,7 +27,6 @@
 | `[GITHUB_TOKEN_*]` | 1 |
 | `[CLOUD_KEY_*]` | 1 |
 | `[JWT_*]` | 1 |
-| `[ENV_VALUE_*]` | 3 |
 | `[EMAIL_*]` | 1 |
 | `[IPV4_*]` | 1 |
 | `<REPO>`, `~`, `<HOST>` | 2 |

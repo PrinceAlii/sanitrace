@@ -36,9 +36,61 @@ test('keeps the env var name and redacts only the value', () => {
 });
 
 test('does not double-redact an existing placeholder', () => {
-  const { text } = redact('API_TOKEN=[ENV_VALUE_1]', { entropy: false });
+  const { text, findings } = redact('API_TOKEN=[ENV_VALUE_1]', { entropy: false });
   assert.equal(text, 'API_TOKEN=[ENV_VALUE_1]');
+  assert.deepEqual(findings, []);
   assert.equal(verify(text, { entropy: false }).length, 0);
+});
+
+test('preserves a custom placeholder in an environment assignment', () => {
+  const input = 'API_TOKEN=[ACME_TOKEN_1]';
+  const options = {
+    entropy: false,
+    rules: [{ id: 'acme-token', label: 'ACME_TOKEN', pattern: /acme_[a-z0-9]+/g }],
+  };
+  const result = redact(input, options);
+
+  assert.equal(result.text, input);
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(verify(result.text, options), []);
+});
+
+test('uses the specific token rule before an environment assignment', () => {
+  const input = 'ANTHROPIC_TOKEN=sk-ant-api03-Zx9Qw8Er7Ty6Ui5Op4As3Df2';
+  const result = redact(input, { entropy: false });
+
+  assert.equal(result.text, 'ANTHROPIC_TOKEN=[ANTHROPIC_KEY_1]');
+  assert.deepEqual(result.findings.map(({ rule, count }) => [rule, count]), [
+    ['anthropic-key', 1],
+  ]);
+  assert.deepEqual(verify(result.text, { entropy: false }), []);
+  assert.deepEqual(redact(result.text, { entropy: false }).findings, []);
+});
+
+test('uses URL credentials before a connection string with credentials', () => {
+  const input = 'postgres://bob:hunter2@git.example.com/db';
+  const result = redact(input, { entropy: false });
+
+  assert.equal(result.text, '[URL_CREDENTIALS_1]/db');
+  assert.deepEqual(result.findings.map(({ rule, count }) => [rule, count]), [
+    ['url-credentials', 1],
+  ]);
+  assert.deepEqual(verify(result.text, { entropy: false }), []);
+});
+
+test('numbers adjacent and repeated values by first occurrence', () => {
+  const first = 'sk-proj-Ab3dEf6hIj9kLm2nOp5qRs8t';
+  const second = 'sk-proj-Bb3dEf6hIj9kLm2nOp5qRs8t';
+  const result = redact(`${first},${second},${first}`, { entropy: false, mapping: true });
+
+  assert.equal(result.text, '[OPENAI_KEY_1],[OPENAI_KEY_2],[OPENAI_KEY_1]');
+  assert.equal(result.findings[0].count, 3);
+  assert.deepEqual(result.entries, [
+    { placeholder: '[OPENAI_KEY_1]', value: first },
+    { placeholder: '[OPENAI_KEY_2]', value: second },
+  ]);
+  assert.deepEqual(verify(result.text, { entropy: false }), []);
+  assert.deepEqual(redact(result.text, { entropy: false }).findings, []);
 });
 
 test('redacts PEM private keys as a single block', () => {

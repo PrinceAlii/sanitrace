@@ -26,6 +26,15 @@ or a pull request body.
 Anchor rules with `\b` or a lookaround. Avoid patterns that backtrack
 catastrophically, and never match a placeholder such as `[OPENAI_KEY_1]` twice.
 
+For a new or changed detector, use synthetic values in tests and fixtures. Add
+positive and near-miss cases to `test/corpus.test.js`. Include examples of
+legitimate text that the rule could match. Check overlap with existing rules
+and record changes to placeholders or report output in the changelog.
+
+Report a missed credential format through the private process in
+[SECURITY.md](SECURITY.md). Do not include real credentials in an issue or
+pull request.
+
 ## Add a session format
 
 Add a parser to `src/parse.js`, extend `detectFormat`, and add a branch in

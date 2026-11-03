@@ -166,6 +166,52 @@ test('detection rejects prose and JSON with one matching key', () => {
   assert.equal(detectFormat(codex), 'codex');
 });
 
+test('detects overlapping format signals in priority order', () => {
+  const inputs = [
+    ['{"type":"session_meta","sessionId":"s","message":{}}', 'codex'],
+    ['{"sessionId":"s","message":{},"info":{},"messages":[{"type":"user"}]}', 'claude'],
+    ['{"info":{},"messages":[{"type":"user"}],"sessionId":"s","projectHash":"p","toolCalls":[]}', 'opencode'],
+  ];
+
+  for (const [input, expected] of inputs) {
+    assert.equal(detectFormat(input), expected);
+    assert.equal(parse(input).format, expected);
+  }
+});
+
+test('detects truncated headers and unrelated JSON by their available signals', () => {
+  const inputs = [
+    ['{"type":"session_meta"', 'codex'],
+    ['{"sessionId":"s","message":{', 'claude'],
+    ['{"info":{},"messages":[{"type":"user"}', 'text'],
+    ['{"sessionId":"s","projectHash":"p"}\n{"type":', 'text'],
+    ['{"settings":{"model_provider":"example"}}', 'codex'],
+    ['{"sessionId":"s","message":{"subject":"hello"}}', 'claude'],
+  ];
+
+  for (const [input, expected] of inputs) {
+    assert.equal(detectFormat(input), expected);
+  }
+});
+
+test('limits Codex and Claude detection to the first 20000 characters', () => {
+  const padding = ' '.repeat(20000);
+  assert.equal(detectFormat(`${padding}{"type":"session_meta"}`), 'text');
+  assert.equal(detectFormat(`${padding}{"sessionId":"s","message":{}}`), 'text');
+  assert.equal(detectFormat(`{"type":"session_meta"}${padding}`), 'codex');
+});
+
+test('explicit format overrides detection', () => {
+  assert.equal(detectFormat(gemini), 'gemini');
+  const parsed = parse(gemini, { format: 'text', maxBlockChars: gemini.length });
+  assert.equal(parsed.format, 'text');
+  assert.equal(parsed.turns[0].blocks[0].text, gemini);
+
+  const header = '{"sessionId":"s","projectHash":"p"}';
+  assert.equal(detectFormat(header), 'text');
+  assert.equal(parse(header, { format: 'gemini' }).meta.sessionId, 's');
+});
+
 test('an explicit OpenCode format parses plain text as empty', () => {
   const parsed = parse('OpenCode session pasted as plain text', { format: 'opencode' });
   assert.equal(parsed.format, 'opencode');
