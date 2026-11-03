@@ -4,6 +4,9 @@
 
 - Validate configuration types and numeric limits before reading input. Invalid
   values now fail even when a CLI flag overrides them.
+- Exit 2 when writing to stdout fails.
+- Skip existing placeholders in environment assignments without counting a
+  redaction. Custom rule placeholders are also recognized.
 
 ## 0.4.0
 

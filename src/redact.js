@@ -3,9 +3,8 @@
 // Every detector is a regex plus a placeholder label. The module has no network
 // access and no runtime dependencies.
 //
-// Order matters: specific formats run before generic ones (a PEM block before the
-// entropy pass, a credential-bearing URL before bare emails, an env assignment
-// before the generic token rules).
+// Built-in rules run in this order, followed by custom rules, path mappings,
+// and the entropy pass. A replacement can prevent a later rule from matching.
 
 const RULES = [
   {
@@ -80,7 +79,6 @@ const RULES = [
       /\b([A-Z][A-Z0-9_]{2,}(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|CREDENTIALS?|SALT|DSN|WEBHOOK)(?:_[A-Z0-9_]+)?)\s*[=:]\s*["']?([^\s"'#,}]{6,})/g,
     // Keep the variable name, redact only the literal value.
     replace: (token, match, _name, value) => {
-      if (isPlaceholder(value)) return match;
       const suffix = /[.,;:!?]+$/.exec(value)?.[0] ?? '';
       return `${match.slice(0, match.length - value.length)}${token}${suffix}`;
     },
@@ -172,6 +170,7 @@ export function redact(input, options = {}) {
   const allow = options.allow ?? [];
   const disabled = new Set(options.disable ?? []);
   const customRules = options.rules ?? options.customRules ?? [];
+  const labels = placeholderLabels(customRules);
   const counters = new Map();
   const samples = new Map();
   const seen = new Map();
@@ -187,6 +186,7 @@ export function redact(input, options = {}) {
     text = text.replace(rule.pattern, (...args) => {
       const match = args[0];
       if (isAllowed(match, allow)) return match;
+      if (rule.id === 'env-assignment' && isPlaceholder(args[2], labels)) return match;
 
       const token = placeholderFor(rule, match, counters, samples, seen);
       const replaced = rule.replace ? rule.replace(token, ...args) : token;

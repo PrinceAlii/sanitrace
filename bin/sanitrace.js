@@ -16,6 +16,11 @@ const FORMAT_NAMES = ['auto', 'codex', 'claude', 'opencode', 'gemini', 'text'];
 const FORMATS = new Set(FORMAT_NAMES);
 const MAPPING_WARNING = 'sanitrace: mapping contains original secrets; avoid logging stdout.';
 
+process.stdout.on('error', (error) => {
+  process.stderr.write(`sanitrace: could not write stdout: ${error.message}\n`);
+  process.exitCode = 2;
+});
+
 // Report-only flags that have no meaning in raw mode. Order matches the spec so
 // the first conflicting flag is the one named in the error.
 const RAW_REPORT_FLAGS = [
