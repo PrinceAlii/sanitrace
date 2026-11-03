@@ -53,4 +53,11 @@ session. Add tests for detection, the parsed shape, and a clean `sanitize` run.
 
 1. Bump `version` in `package.json` and `VERSION` in `src/render.js`.
 2. Add an entry to `CHANGELOG.md`.
-3. `git tag vX.Y.Z`, push the tag, then run `npm publish`.
+3. Check that implemented specs and the index in `docs/specs/README.md` agree.
+4. Check that the changelog and `ROADMAP.md` describe the release.
+5. Run `npm test`.
+6. Run `npm run lint`.
+7. Check the CI matrix before release.
+8. Create the `vX.Y.Z` tag.
+9. Push the tag.
+10. Run `npm publish`.

@@ -1,6 +1,6 @@
 # 0007: Report diff
 
-Status: Accepted
+Status: Implemented
 Target: 0.4.0
 Depends on: 0004
 

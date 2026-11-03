@@ -1,17 +1,16 @@
 name: Bug report
-description: Something parsed wrong, rendered wrong, or leaked.
+description: Report a parsing or rendering problem.
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        A redacted report is worth more than a description. Run:
+        This issue is public. Use a synthetic session to reproduce the problem.
+        Do not paste a real session log or diagnostic output.
 
-        ```
-        npx sanitrace <your session log> -o report.md
-        ```
-
-        Read it, then paste the relevant part below. Never paste an unredacted log.
+        Report suspected leaks and other vulnerabilities through
+        [private vulnerability reporting](https://github.com/PrinceAlii/sanitrace/security/advisories/new).
+        See the [security policy](https://github.com/PrinceAlii/sanitrace/blob/main/SECURITY.md).
   - type: textarea
     id: what
     attributes:
@@ -22,8 +21,8 @@ body:
   - type: textarea
     id: report
     attributes:
-      label: Redacted report
-      description: The metadata header and the affected turn. Raw logs are fine if they are small.
+      label: Synthetic reproduction
+      description: Include synthetic input and the relevant output. Remove private paths and identifiers.
       render: markdown
   - type: input
     id: version
@@ -39,11 +38,6 @@ body:
       placeholder: node 22.11.0, macOS 15.2
     validations:
       required: true
-  - type: textarea
-    id: residual
-    attributes:
-      label: Anything the verify pass flagged?
-      description: If it exited 3, paste the five lines it printed to stderr.
   - type: checkboxes
     id: checks
     attributes:
@@ -51,5 +45,5 @@ body:
       options:
         - label: The report still reproduces on the latest release.
           required: true
-        - label: I removed anything I did not want public.
+        - label: The reproduction contains only synthetic data and no private information.
           required: true
